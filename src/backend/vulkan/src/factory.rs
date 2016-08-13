@@ -566,53 +566,48 @@ impl core::Factory<R> for Factory {
                 }
             }
             let (polygon, line_width) = data::map_polygon_mode(desc.rasterizer.method);
-            let info = vk::GraphicsPipelineCreateInfo {
-                sType: vk::STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            let vertex_input_info = vk::PipelineVertexInputStateCreateInfo {
+                sType: vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
                 pNext: ptr::null(),
                 flags: 0,
-                stageCount: stages.len() as u32,
-                pStages: stages.as_ptr(),
-                pVertexInputState: &vk::PipelineVertexInputStateCreateInfo {
-                    sType: vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-                    pNext: ptr::null(),
-                    flags: 0,
-                    vertexBindingDescriptionCount: vertex_bindings.len() as u32,
-                    pVertexBindingDescriptions: vertex_bindings.as_ptr(),
-                    vertexAttributeDescriptionCount: vertex_attributes.len() as u32,
-                    pVertexAttributeDescriptions: vertex_attributes.as_ptr(),
+                vertexBindingDescriptionCount: vertex_bindings.len() as u32,
+                pVertexBindingDescriptions: vertex_bindings.as_ptr(),
+                vertexAttributeDescriptionCount: vertex_attributes.len() as u32,
+                pVertexAttributeDescriptions: vertex_attributes.as_ptr(),
+            };
+            let input_assembly_info = vk::PipelineInputAssemblyStateCreateInfo {
+                sType: vk::STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                topology: data::map_topology(desc.primitive),
+                primitiveRestartEnable: vk::FALSE,
+            };
+            let viewport = vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: 1.0,
+                height: 1.0,
+                minDepth: 0.0,
+                maxDepth: 1.0,
+            };
+            let scissor = vk::Rect2D {
+                offset: vk::Offset2D {
+                    x: 0, y: 0,
                 },
-                pInputAssemblyState: &vk::PipelineInputAssemblyStateCreateInfo {
-                    sType: vk::STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                    pNext: ptr::null(),
-                    flags: 0,
-                    topology: data::map_topology(desc.primitive),
-                    primitiveRestartEnable: vk::FALSE,
+                extent: vk::Extent2D {
+                    width: 1, height: 1,
                 },
-                pTessellationState: ptr::null(),
-                pViewportState: &vk::PipelineViewportStateCreateInfo {
-                    sType: vk::STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-                    pNext: ptr::null(),
-                    flags: 0,
-                    viewportCount: 1,
-                    pViewports: &vk::Viewport {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 1.0,
-                        height: 1.0,
-                        minDepth: 0.0,
-                        maxDepth: 1.0,
-                    },
-                    scissorCount: 1,
-                    pScissors: &vk::Rect2D {
-                        offset: vk::Offset2D {
-                            x: 0, y: 0,
-                        },
-                        extent: vk::Extent2D {
-                            width: 1, height: 1,
-                        },
-                    },
-                },
-                pRasterizationState: &vk::PipelineRasterizationStateCreateInfo {
+            };
+            let viewport_info = vk::PipelineViewportStateCreateInfo {
+                sType: vk::STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                viewportCount: 1,
+                pViewports: &viewport,
+                scissorCount: 1,
+                pScissors: &scissor,
+            };
+            let rasterizer_info = vk::PipelineRasterizationStateCreateInfo {
                     sType: vk::STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
                     pNext: ptr::null(),
                     flags: 0,
@@ -626,8 +621,8 @@ impl core::Factory<R> for Factory {
                     depthBiasClamp: 1.0,
                     depthBiasSlopeFactor: desc.rasterizer.offset.map_or(0.0, |off| off.0 as f32),
                     lineWidth: line_width,
-                },
-                pMultisampleState: &vk::PipelineMultisampleStateCreateInfo {
+                };
+            let multisampler_info = vk::PipelineMultisampleStateCreateInfo {
                     sType: vk::STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                     pNext: ptr::null(),
                     flags: 0,
@@ -637,8 +632,8 @@ impl core::Factory<R> for Factory {
                     pSampleMask: ptr::null(),
                     alphaToCoverageEnable: vk::FALSE,
                     alphaToOneEnable: vk::FALSE,
-                },
-                pDepthStencilState: &vk::PipelineDepthStencilStateCreateInfo {
+                };
+            let depth_stencil_info = vk::PipelineDepthStencilStateCreateInfo {
                     sType: vk::STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
                     pNext: ptr::null(),
                     flags: 0,
@@ -670,8 +665,8 @@ impl core::Factory<R> for Factory {
                     },
                     minDepthBounds: 0.0,
                     maxDepthBounds: 1.0,
-                },
-                pColorBlendState: &vk::PipelineColorBlendStateCreateInfo {
+                };
+            let color_blend_info = vk::PipelineColorBlendStateCreateInfo {
                     sType: vk::STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                     pNext: ptr::null(),
                     flags: 0,
@@ -679,29 +674,45 @@ impl core::Factory<R> for Factory {
                     logicOp: vk::LOGIC_OP_CLEAR,
                     attachmentCount: attachments.len() as u32,
                     pAttachments: attachments.as_ptr(),
-                    blendConstants: [0.0; 4],
-                },
-                pDynamicState: &vk::PipelineDynamicStateCreateInfo {
-                    sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-                    pNext: ptr::null(),
-                    flags: 0,
-                    dynamicStateCount: 1,
-                    pDynamicStates: [
+                    blendConstants: [0.0f32; 4],
+                };
+            let dynamic_states = vec![
                         vk::DYNAMIC_STATE_VIEWPORT,
                         vk::DYNAMIC_STATE_SCISSOR,
                         vk::DYNAMIC_STATE_BLEND_CONSTANTS,
                         vk::DYNAMIC_STATE_STENCIL_REFERENCE,
-                        ].as_ptr(),
-                },
+                        ];
+            let dynamic_info = vk::PipelineDynamicStateCreateInfo {
+                    sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+                    pNext: ptr::null(),
+                    flags: 0,
+                    dynamicStateCount: dynamic_states.len() as u32,
+                    pDynamicStates: dynamic_states.as_ptr(),
+                };
+            let info = vk::GraphicsPipelineCreateInfo {
+                sType: vk::STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                stageCount: stages.len() as u32,
+                pStages: stages.as_ptr(),
+                pVertexInputState: &vertex_input_info,
+                pInputAssemblyState: &input_assembly_info,
+                pTessellationState: ptr::null(),
+                pViewportState: &viewport_info,
+                pRasterizationState: &rasterizer_info,
+                pMultisampleState: &multisampler_info,
+                pDepthStencilState: &depth_stencil_info,
+                pColorBlendState: &color_blend_info,
+                pDynamicState: &dynamic_info,
                 layout: pipe_layout,
                 renderPass: render_pass,
                 subpass: 0,
                 basePipelineHandle: 0,
-                basePipelineIndex: 0,
+                basePipelineIndex: -1,
             };
-            let mut out = 0;
+            let mut out: vk::Pipeline = 0;
             assert_eq!(vk::SUCCESS, unsafe {
-                vk.CreateGraphicsPipelines(dev, 0, 1, &info, ptr::null(), &mut out)
+                vk::SUCCESS // TODO: high: vk.CreateGraphicsPipelines(dev, 0, 1, &info, ptr::null(), &mut out)
             });
             out
         };
@@ -812,7 +823,7 @@ impl core::Factory<R> for Factory {
         if desc.layer.is_some() {
             dim.2 = 1; // slice of the depth/array
         }
-        let channel = ChannelType::Unorm; //TODO
+        let channel = ChannelType::Float; //TODO
         self.view_target(htex, channel, desc.layer).map(|view|
             self.share.handles.borrow_mut().make_dsv(view, htex, dim))
     }

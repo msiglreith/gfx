@@ -127,6 +127,7 @@ impl<R: gfx::Resources> gfx_app::Application<R> for App<R> {
             20, 21, 22, 22, 23, 20, // back
         ];
 
+        println!("test");
         let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertex_data, index_data);
 
         let texels = [[0x20, 0xA0, 0xC0, 0x00]];

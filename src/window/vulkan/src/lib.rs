@@ -262,11 +262,8 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
     });
     unsafe { images.set_len(num_images as usize); }
 
-    let mut cbuf = factory.create_command_buffer();
-
     let targets = images.iter().map(|image| {
         use gfx_core::factory::Typed;
-        cbuf.image_barrier(*image, vk::IMAGE_ASPECT_COLOR_BIT, vk::IMAGE_LAYOUT_UNDEFINED, vk::IMAGE_LAYOUT_PRESENT_SRC_KHR);
         let raw_view = factory.view_swapchain_image(*image, format, (requested_width, requested_height)).unwrap();
         SwapTarget {
             _image: *image,
@@ -274,11 +271,6 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
             _fence: factory.create_fence(true),
         }
     }).collect();
-
-    {
-        use gfx_core::Device;
-        device.submit(&mut cbuf);
-    }
 
     let win = Window {
         window: window,

@@ -49,7 +49,7 @@ pub fn map_image_view_type(kind: Kind, layer: Option<Layer>) -> Result<vk::Image
 pub fn map_image_aspect(surface: SurfaceType, channel: ChannelType, is_target: bool) -> vk::ImageAspectFlags {
     match surface {
         SurfaceType::D16 | SurfaceType::D24 | SurfaceType::D24_S8 | SurfaceType::D32 => match (is_target, channel) {
-            (true, _) => vk::IMAGE_ASPECT_DEPTH_BIT | vk::IMAGE_ASPECT_STENCIL_BIT,
+            (true, _) => vk::IMAGE_ASPECT_DEPTH_BIT, // TODO: high: temporary | vk::IMAGE_ASPECT_STENCIL_BIT,
             (false, ChannelType::Float) | (false, ChannelType::Unorm) => vk::IMAGE_ASPECT_DEPTH_BIT,
             (false, ChannelType::Uint)  => vk::IMAGE_ASPECT_STENCIL_BIT,
             _ => {

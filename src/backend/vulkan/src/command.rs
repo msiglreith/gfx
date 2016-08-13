@@ -72,6 +72,8 @@ impl Buffer {
 
 impl Drop for Buffer {
     fn drop(&mut self) {
+        // TODO: mid-high: check if the command buffer is still in use
+        /*
         let (dev, vk) = self.share.get_device();
         unsafe {
             vk.FreeCommandBuffers(dev, self.parent_pool, 1, &self.inner);
@@ -81,6 +83,7 @@ impl Drop for Buffer {
                 vk.DestroyFramebuffer(dev, fbo, ptr::null());
             }
         }
+        */
     }
 }
 
@@ -325,6 +328,8 @@ impl core::Device for GraphicsQueue {
         assert_eq!(vk::SUCCESS, unsafe {
             vk.QueueSubmit(self.queue, 1, &submit_info, 0)
         });
+        // TODO: reset command buffer?
+        /*
         let begin_info = vk::CommandBufferBeginInfo {
             sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             pNext: ptr::null(),
@@ -334,6 +339,7 @@ impl core::Device for GraphicsQueue {
         assert_eq!(vk::SUCCESS, unsafe {
             vk.BeginCommandBuffer(com.inner, &begin_info)
         });
+        */
     }
 
     //note: this should really live elsewhere (Factory?)
