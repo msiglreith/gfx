@@ -170,8 +170,10 @@ pub fn map_format(surface: SurfaceType, chan: ChannelType) -> Option<vk::Format>
             Int   => vk::FORMAT_R8G8B8A8_SINT,
             Uint  => vk::FORMAT_R8G8B8A8_UINT,
             Inorm => vk::FORMAT_R8G8B8A8_SNORM,
-            Unorm => vk::FORMAT_R8G8B8A8_UNORM,
-            Srgb  => vk::FORMAT_R8G8B8A8_SRGB,
+            // TODO: high: this is the standard format for swapchain surfaces
+            // check how this influences textures and also adopt the other surface types
+            Unorm => vk::FORMAT_B8G8R8A8_UNORM,
+            Srgb  => vk::FORMAT_B8G8R8A8_SRGB,
             _ => return None,
         },
         R10_G10_B10_A2 => match chan {

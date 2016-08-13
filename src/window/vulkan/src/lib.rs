@@ -171,8 +171,7 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
     let surface = surface_windows(backend.clone(), window.get_hwnd() as *mut _);
 
     let (dev, vk) = backend.get_device();
-    let mut images: [vk::Image; 2] = [0; 2];
-    let mut num = images.len() as u32;
+    let mut num_images = 2;
     let format = <T as format::Formatted>::get_format();
     let draw_size = window.get_inner_size().unwrap();
 
@@ -187,22 +186,53 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
     };
 
     // Determine whether a queue family of a physical device supports presentation to a given surface 
-    {
+    let supports_presentation = {
         let (_, vk) = backend.get_instance();
         let dev = backend.get_physical_device();
         let mut supported = 0;
         assert_eq!(vk::SUCCESS, unsafe {
             vk.GetPhysicalDeviceSurfaceSupportKHR(dev, device.get_family(), surface, &mut supported)
         });
-    }
-    
+        supported != 0
+    };
 
+    let surface_formats = {
+        let (_, vk) = backend.get_instance();
+        let dev = backend.get_physical_device();
+        let mut num = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface, &mut num, ptr::null_mut())
+        });
+        let mut formats = Vec::with_capacity(num as usize);
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface, &mut num, formats.as_mut_ptr())
+        });
+        unsafe { formats.set_len(num as usize); }
+        formats
+    };
+
+    let present_modes = {
+        let (_, vk) = backend.get_instance();
+        let dev = backend.get_physical_device();
+        let mut num = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.GetPhysicalDeviceSurfacePresentModesKHR(dev, surface, &mut num, ptr::null_mut())
+        });
+        let mut modes = Vec::with_capacity(num as usize);
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.GetPhysicalDeviceSurfacePresentModesKHR(dev, surface, &mut num, modes.as_mut_ptr())
+        });
+        unsafe { modes.set_len(num as usize); }
+        modes
+    };
+
+    // TODO: Use the queried information to check if our values are supported before creating the swapchain
     let swapchain_info = vk::SwapchainCreateInfoKHR {
         sType: vk::STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         pNext: ptr::null(),
         flags: 0,
         surface: surface,
-        minImageCount: num,
+        minImageCount: num_images,
         imageFormat: gfx_device_vulkan::data::map_format(format.0, format.1).unwrap(),
         imageColorSpace: vk::COLOR_SPACE_SRGB_NONLINEAR_KHR,
         imageExtent: vk::Extent2D { width: requested_width, height: requested_height },
@@ -213,7 +243,7 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
         pQueueFamilyIndices: &0,
         preTransform: vk::SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         compositeAlpha: vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        presentMode: vk::PRESENT_MODE_FIFO_RELAXED_KHR,
+        presentMode: present_modes[0],
         clipped: vk::TRUE,
         oldSwapchain: 0,
     };
@@ -224,12 +254,17 @@ pub fn init<T: gfx_core::format::RenderFormat>(title: &str, requested_width: u32
     });
 
     assert_eq!(vk::SUCCESS, unsafe {
-        vk.GetSwapchainImagesKHR(dev, swapchain, &mut num, images.as_mut_ptr())
+        vk.GetSwapchainImagesKHR(dev, swapchain, &mut num_images, ptr::null_mut())
     });
+    let mut images = Vec::with_capacity(num_images as usize);
+    assert_eq!(vk::SUCCESS, unsafe {
+        vk.GetSwapchainImagesKHR(dev, swapchain, &mut num_images, images.as_mut_ptr())
+    });
+    unsafe { images.set_len(num_images as usize); }
 
     let mut cbuf = factory.create_command_buffer();
 
-    let targets = images[.. num as usize].iter().map(|image| {
+    let targets = images.iter().map(|image| {
         use gfx_core::factory::Typed;
         cbuf.image_barrier(*image, vk::IMAGE_ASPECT_COLOR_BIT, vk::IMAGE_LAYOUT_UNDEFINED, vk::IMAGE_LAYOUT_PRESENT_SRC_KHR);
         let raw_view = factory.view_swapchain_image(*image, format, (requested_width, requested_height)).unwrap();
