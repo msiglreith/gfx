@@ -50,7 +50,8 @@ impl PhysicalDeviceInfo {
                 out
             },
             queue_families: unsafe {
-                let mut num = 4;
+                let mut num = 0;
+                vk.GetPhysicalDeviceQueueFamilyProperties(dev, &mut num, ptr::null_mut());
                 let mut families = Vec::with_capacity(num as usize);
                 vk.GetPhysicalDeviceQueueFamilyProperties(dev, &mut num, families.as_mut_ptr());
                 families.set_len(num as usize);
@@ -78,6 +79,7 @@ pub struct Share {
     inst_pointers: vk::InstancePointers,
     device: vk::Device,
     dev_pointers: vk::DevicePointers,
+    physical_device: vk::PhysicalDevice,
     handles: RefCell<gfx_core::handle::Manager<Resources>>,
 }
 
@@ -90,6 +92,9 @@ impl Share {
     pub fn get_device(&self) -> (vk::Device, &vk::DevicePointers) {
         (self.device, &self.dev_pointers)
     }
+    pub fn get_physical_device(&self) -> vk::PhysicalDevice {
+        self.physical_device
+    }
 }
 
 pub fn create(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&str],
@@ -97,7 +102,13 @@ pub fn create(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&
     use std::ffi::CString;
     use std::path::Path;
 
-    let dynamic_lib = DynamicLibrary::open(Some(Path::new("libvulkan.so.1"))).unwrap();
+    let dynamic_lib = DynamicLibrary::open(Some(
+            if cfg!(target_os = "windows") {
+                Path::new("vulkan-1.dll") // TODO: correct one?
+            } else {
+                Path::new("libvulkan.so.1")
+            }
+        )).expect("Unable to open vulkan dynamic library");
     let lib = vk::Static::load(|name| unsafe {
         let name = name.to_str().unwrap();
         dynamic_lib.symbol(name).unwrap()
@@ -145,16 +156,23 @@ pub fn create(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&
         mem::transmute(lib.GetInstanceProcAddr(instance, name.as_ptr()))
     });
 
-    let mut physical_devices: [vk::PhysicalDevice; 4] = unsafe { mem::zeroed() };
-    let mut num = physical_devices.len() as u32;
+    // Query physical devices
+    //  1. Retrieve number of devices by calling w/ NULL-pointer
+    let mut num = 0;
+    assert_eq!(vk::SUCCESS, unsafe {
+        inst_pointers.EnumeratePhysicalDevices(instance, &mut num, ptr::null_mut())
+    });
+    //  2. Query devices using a non-NULL pointer
+    let mut physical_devices = Vec::with_capacity(num as usize);
     assert_eq!(vk::SUCCESS, unsafe {
         inst_pointers.EnumeratePhysicalDevices(instance, &mut num, physical_devices.as_mut_ptr())
     });
-    let devices = physical_devices[..num as usize].iter()
+    unsafe { physical_devices.set_len(num as usize); }
+    let devices = physical_devices.iter()
         .map(|dev| PhysicalDeviceInfo::new(*dev, &inst_pointers))
         .collect::<Vec<_>>();
 
-    let (dev, (qf_id, _))  = devices.iter()
+    let (dev, (qf_id, _)) = devices.iter()
         .flat_map(|d| iter::repeat(d).zip(d.queue_families.iter().enumerate()))
         .find(|&(_, (_, qf))| qf.queueFlags & vk::QUEUE_GRAPHICS_BIT != 0)
         .unwrap();
@@ -219,6 +237,7 @@ pub fn create(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&
         inst_pointers: inst_pointers,
         device: device,
         dev_pointers: dev_pointers,
+        physical_device: dev.device,
         handles: RefCell::new(gfx_core::handle::Manager::new()),
     });
     let gfx_device = command::GraphicsQueue::new(share.clone(), queue, qf_id as u32);
