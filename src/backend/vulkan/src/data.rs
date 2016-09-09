@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use core::{shade, state, memory, Primitive};
+use core::{shade, state, memory, Primitive, buffer};
 use core::memory::{Bind, Usage};
 use core::format::{SurfaceType, ChannelType, Swizzle, ChannelSource};
 use core::pso::ColorInfo;
@@ -79,6 +79,18 @@ pub fn map_swizzle(swizzle: Swizzle) -> vk::ComponentMapping {
         b: map_channel_source(swizzle.2),
         a: map_channel_source(swizzle.3),
     }
+}
+
+pub fn map_buffer_usage(info: &buffer::Info) -> vk::BufferUsageFlags {
+    let mut usage = 0;
+    match info.role {
+        buffer::Role::Vertex => usage |= vk::BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        buffer::Role::Index => usage |= vk::BUFFER_USAGE_INDEX_BUFFER_BIT,
+        buffer::Role::Constant => usage |= vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, // TODO:
+    }
+    // TODO: map usage
+
+    usage
 }
 
 pub fn map_usage_tiling(gfx_usage: Usage, bind: Bind) -> (vk::ImageUsageFlags, vk::ImageTiling) {

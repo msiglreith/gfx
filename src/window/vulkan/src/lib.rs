@@ -253,6 +253,9 @@ pub fn init<T: core::format::RenderFormat>(title: &str, width: u32, height: u32)
     });
 
     assert_eq!(vk::SUCCESS, unsafe {
+        vk.GetSwapchainImagesKHR(dev, swapchain, &mut num, ptr::null_mut())
+    });
+    assert_eq!(vk::SUCCESS, unsafe {
         vk.GetSwapchainImagesKHR(dev, swapchain, &mut num, images.as_mut_ptr())
     });
 

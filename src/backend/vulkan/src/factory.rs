@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+use std::cmp;
 use std::{cell, mem, ptr, slice};
 use std::os::raw::c_void;
 use core::{self, handle as h, pso, state, texture, buffer};
@@ -186,13 +186,12 @@ impl Factory {
     }
 
     fn create_buffer_impl(&mut self, info: &buffer::Info) -> native::Buffer {
-        let (usage, _) = data::map_usage_tiling(info.usage, info.bind);
         let native_info = vk::BufferCreateInfo {
             sType: vk::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             pNext: ptr::null(),
             flags: 0,
             size: info.size as vk::DeviceSize,
-            usage: usage,
+            usage: data::map_buffer_usage(info),
             sharingMode: vk::SHARING_MODE_EXCLUSIVE,
             queueFamilyIndexCount: 1,
             pQueueFamilyIndices: &self.queue_family_index,
@@ -740,8 +739,9 @@ impl core::Factory<R> for Factory {
     }
 
     fn create_texture_raw(&mut self, desc: texture::Info, hint: Option<core::format::ChannelType>,
-                          _data_opt: Option<&[&[u8]]>) -> Result<h::RawTexture<R>, texture::CreationError> {
+                          data_opt: Option<&[&[u8]]>) -> Result<h::RawTexture<R>, texture::CreationError> {
         use core::handle::Producer;
+        use std::cmp::max;
 
         let (w, h, d, aa) = desc.kind.get_dimensions();
         let slices = desc.kind.get_num_slices();
@@ -758,9 +758,9 @@ impl core::Factory<R> for Factory {
                 None => return Err(texture::CreationError::Format(desc.format, hint)),
             },
             extent: vk::Extent3D {
-                width: w as u32,
-                height: h as u32,
-                depth: if slices.is_none() {d as u32} else {1},
+                width: max(w, 1) as u32,
+                height: max(h, 1) as u32,
+                depth: if slices.is_none() {max(d, 1) as u32} else {1},
             },
             mipLevels: desc.levels as u32,
             arrayLayers: slices.unwrap_or(1) as u32,
@@ -770,7 +770,7 @@ impl core::Factory<R> for Factory {
             sharingMode: vk::SHARING_MODE_EXCLUSIVE,
             queueFamilyIndexCount: 0,
             pQueueFamilyIndices: ptr::null(),
-            initialLayout: data::map_image_layout(desc.bind),
+            initialLayout: if data_opt.is_some() { vk::IMAGE_LAYOUT_PREINITIALIZED } else { vk::IMAGE_LAYOUT_UNDEFINED },
         };
         let (dev, vk) = self.share.get_device();
         let mut image = 0;
@@ -790,6 +790,9 @@ impl core::Factory<R> for Factory {
         assert_eq!(vk::SUCCESS, unsafe {
             vk.BindImageMemory(dev, image, tex.memory, 0)
         });
+
+        // TODO: upload image data if available
+
         Ok(self.share.handles.borrow_mut().make_texture(tex, desc))
     }
 
