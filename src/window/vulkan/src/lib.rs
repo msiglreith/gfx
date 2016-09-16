@@ -178,7 +178,7 @@ pub fn init<T: core::format::RenderFormat>(title: &str, width: u32, height: u32)
     let mut num = images.len() as u32;
     let format = <T as format::Formatted>::get_format();
 
-    let surface_capabilities = {
+    let _surface_capabilities = {
         let (_, vk) = backend.get_instance();
         let dev = backend.get_physical_device();
         let mut capabilities: vk::SurfaceCapabilitiesKHR = unsafe { std::mem::uninitialized() };
@@ -189,7 +189,7 @@ pub fn init<T: core::format::RenderFormat>(title: &str, width: u32, height: u32)
     };
 
     // Determine whether a queue family of a physical device supports presentation to a given surface 
-    let supports_presentation = {
+    let _supports_presentation = {
         let (_, vk) = backend.get_instance();
         let dev = backend.get_physical_device();
         let mut supported = 0;
@@ -199,7 +199,7 @@ pub fn init<T: core::format::RenderFormat>(title: &str, width: u32, height: u32)
         supported != 0
     };
 
-    let surface_formats = {
+    let _surface_formats = {
         let (_, vk) = backend.get_instance();
         let dev = backend.get_physical_device();
         let mut num = 0;
@@ -214,7 +214,7 @@ pub fn init<T: core::format::RenderFormat>(title: &str, width: u32, height: u32)
         formats
     };
 
-    let present_modes = {
+    let _present_modes = {
         let (_, vk) = backend.get_instance();
         let dev = backend.get_physical_device();
         let mut num = 0;

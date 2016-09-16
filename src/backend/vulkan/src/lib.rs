@@ -133,7 +133,8 @@ pub fn create(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&
     let app_info = vk::ApplicationInfo {
         sType: vk::STRUCTURE_TYPE_APPLICATION_INFO,
         pNext: ptr::null(),
-        pApplicationName: app_name.as_ptr() as *const _,
+        // TODO: Validation layers report badly formed strings sometimes
+        pApplicationName: ptr::null(), // app_name as *const _,
         applicationVersion: app_version,
         pEngineName: "gfx-rs".as_ptr() as *const _,
         engineVersion: 0x1000, //TODO

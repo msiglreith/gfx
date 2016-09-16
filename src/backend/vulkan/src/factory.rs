@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::cmp;
 use std::{cell, mem, ptr, slice};
 use std::os::raw::c_void;
 use core::{self, handle as h, pso, state, texture, buffer};

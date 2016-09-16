@@ -332,8 +332,7 @@ pub fn populate_info(info: &mut shade::ProgramInfo, stage: shade::Stage, reflect
                     // constant buffers
                     match ty.ty {
                         Ty::Struct(ref fields) => {
-                            let mut elements = Vec::new();
-                            for field in fields {
+                            for _field in fields {
                                 // TODO:
                             }
 
@@ -347,7 +346,7 @@ pub fn populate_info(info: &mut shade::ProgramInfo, stage: shade::Stage, reflect
                                 slot: slot as core::ConstantBufferSlot,
                                 size: 0, // TODO:
                                 usage: shade::VERTEX | shade::GEOMETRY | shade::PIXEL, // TODO:
-                                elements: elements,
+                                elements: Vec::new(),
                             });
                         },
 
