@@ -52,6 +52,7 @@ pub struct Window<T> {
 pub struct Frame<'a, T: 'a> {
     window: &'a mut Window<T>,
     target_id: u32,
+    present_wait: vk::Semaphore,
 }
 
 impl<'a, T: Clone> Frame<'a, T> {
@@ -69,8 +70,8 @@ impl<'a, T> Drop for Frame<'a, T> {
         let info = vk::PresentInfoKHR {
             sType: vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
             pNext: ptr::null(),
-            waitSemaphoreCount: 0,
-            pWaitSemaphores: ptr::null(),
+            waitSemaphoreCount: 1,
+            pWaitSemaphores: &self.present_wait,
             swapchainCount: 1,
             pSwapchains: &self.window.swapchain,
             pImageIndices: &self.target_id,
@@ -87,15 +88,18 @@ impl<'a, T> Drop for Frame<'a, T> {
 impl<T: Clone> Window<T> {
     pub fn start_frame(&mut self) -> Frame<T> {
         //TODO: handle window resize (requires swapchain recreation)
+        let acquisition_done = self.queue.get_acquisition_semaphore();
+        let present_wait = self.queue.get_present_semaphore();
         let index = unsafe {
             let (dev, vk) = self.queue.get_share().get_device();
             let mut i = 0;
-            assert_eq!(vk::SUCCESS, vk.AcquireNextImageKHR(dev, self.swapchain, 60, 0, 0, &mut i));
+            assert_eq!(vk::SUCCESS, vk.AcquireNextImageKHR(dev, self.swapchain, 60, acquisition_done, 0, &mut i));
             i
         };
         Frame {
             window: self,
             target_id: index,
+            present_wait: present_wait,
         }
     }
 

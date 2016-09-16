@@ -262,6 +262,8 @@ pub struct GraphicsQueue {
     family: u32,
     queue: vk::Queue,
     capabilities: core::Capabilities,
+    submit_done: vk::Semaphore,
+    acquisition_done: vk::Semaphore,
 }
 
 impl GraphicsQueue {
@@ -280,11 +282,17 @@ impl GraphicsQueue {
             unordered_access_view_supported: false,
             separate_blending_slots_supported: false,
         };
+        let (submit_done, acquisition_done) = {
+            let (dev, vk) = share.get_device();
+            (create_semaphore(dev, vk), create_semaphore(dev, vk))
+        };
         GraphicsQueue {
             share: share,
             family: qf_id,
             queue: q,
             capabilities: caps,
+            submit_done: submit_done,
+            acquisition_done: acquisition_done,
         }
     }
     #[doc(hidden)]
@@ -298,6 +306,14 @@ impl GraphicsQueue {
     #[doc(hidden)]
     pub fn get_family(&self) -> u32 {
         self.family
+    }
+    #[doc(hidden)]
+    pub fn get_present_semaphore(&self) -> vk::Semaphore {
+        self.submit_done
+    }
+    #[doc(hidden)]
+    pub fn get_acquisition_semaphore(&self) -> vk::Semaphore {
+        self.acquisition_done
     }
 
     fn ensure_mappings_flushed(&mut self, mappings: &[handle::RawMapping<Resources>]) {
@@ -455,4 +471,17 @@ impl core::Device for GraphicsQueue {
             }
         );
     }
+}
+
+fn create_semaphore(dev: vk::Device, vk: &vk::DevicePointers) -> vk::Semaphore {
+    let create_info = vk::SemaphoreCreateInfo {
+        sType: vk::STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        pNext: ptr::null(),
+        flags: 0,
+    };
+    let mut semaphore = 0;
+    assert_eq!(vk::SUCCESS, unsafe {
+        vk.CreateSemaphore(dev, &create_info, ptr::null(), &mut semaphore)
+    });
+    semaphore
 }

@@ -9,8 +9,11 @@ layout(set = 0, binding = 0) uniform Locals {
     mat4 u_Transform;
 };
 
+out gl_PerVertex {
+    vec4 gl_Position;
+}; 
+
 void main() {
     v_TexCoord = a_TexCoord;
     gl_Position = u_Transform * a_Pos;
-    gl_ClipDistance[0] = 1.0;
 }
