@@ -79,7 +79,7 @@ impl Factory {
         command::Buffer::new(self.command_pool, self.queue_family_index, self.share.clone())
     }
 
-    fn view_texture(&mut self, htex: &h::RawTexture<R>, desc: texture::ResourceDesc, is_target: bool)
+    fn view_texture(&mut self, htex: &h::RawTexture<R>, desc: texture::ResourceDesc, _is_target: bool)
                     -> Result<native::TextureView, f::ResourceViewError> {
         let raw_tex = self.frame_handles.ref_texture(htex);
         let td = htex.get_info();
@@ -98,7 +98,7 @@ impl Factory {
             },
             components: data::map_swizzle(desc.swizzle),
             subresourceRange: vk::ImageSubresourceRange {
-                aspectMask: data::map_image_aspect(td.format, desc.channel, is_target),
+                aspectMask: data::map_image_aspect(td.format),
                 baseMipLevel: desc.min as u32,
                 levelCount: (desc.max + 1 - desc.min) as u32,
                 baseArrayLayer: desc.layer.unwrap_or(0) as u32,
@@ -837,7 +837,7 @@ impl core::Factory<R> for Factory {
         if desc.layer.is_some() {
             dim.2 = 1; // slice of the depth/array
         }
-        let channel = ChannelType::Unorm; //TODO
+        let channel = ChannelType::Float; //TODO
         self.view_target(htex, channel, desc.layer).map(|view|
             self.share.handles.borrow_mut().make_dsv(view, htex, dim))
     }

@@ -42,9 +42,9 @@ pub type ColorFormat = gfx::format::Rgba8;
 #[cfg(feature = "vulkan")]
 pub type ColorFormat = gfx::format::Bgra8;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", feature = "vulkan"))]
 pub type DepthFormat = gfx::format::Depth32F;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", feature = "vulkan")))]
 pub type DepthFormat = gfx::format::DepthStencil;
 
 pub struct Init<R: gfx::Resources> {
