@@ -28,4 +28,6 @@ path = "src/lib.rs"
 
 [dependencies]
 log = "0.3"
+gfx_core = { path = "../core", version = "0.5" }
+draw_state = "0.6"
 

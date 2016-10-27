@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub trait Factory {
+use Resources;
+
+pub trait Factory<R: Resources> {
     fn create_fence(&mut self) -> ();
-    fn create_semaphore(&mut self) -> ();
-    fn create_event(&mut self) -> ();
-    fn create_shader(&mut self) -> ();
+    //fn create_semaphore(&mut self) -> ();
+    //fn create_event(&mut self) -> ();
+    fn create_shader(&mut self, stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError>;
+
     fn create_compute_pipelines(&mut self) -> ();
     fn create_graphics_pipelines(&mut self) -> ();
     fn create_pipeline_cache(&mut self) -> ();
@@ -25,4 +28,18 @@ pub trait Factory {
     fn create_image(&mut self) -> ();
     fn create_image_view(&mut self) -> ();
     fn create_sampler(&mut self) -> ();
+
+    /// Compiles a `VertexShader` from source.
+    fn create_shader_vertex(&mut self, code: &[u8]) -> Result<VertexShader<R>, shade::CreateShaderError> {
+        self.create_shader(shade::Stage::Vertex, code).map(|s| VertexShader(s))
+    }
+    /// Compiles a `GeometryShader` from source.
+    fn create_shader_geometry(&mut self, code: &[u8]) -> Result<GeometryShader<R>, shade::CreateShaderError> {
+        self.create_shader(shade::Stage::Geometry, code).map(|s| GeometryShader(s))
+    }
+    /// Compiles a `PixelShader` from source. This is the same as what some APIs call a fragment
+    /// shader.
+    fn create_shader_pixel(&mut self, code: &[u8]) -> Result<PixelShader<R>, shade::CreateShaderError> {
+        self.create_shader(shade::Stage::Pixel, code).map(|s| PixelShader(s))
+    }
 }

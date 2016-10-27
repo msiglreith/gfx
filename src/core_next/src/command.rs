@@ -12,49 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub trait GraphicsCommandBuffer : UniversalCommandBuffer + GraphicsComputeCommandBuffer {
-    // vk: primary/seconday | outside // d3d12: primary
-    fn clear_depth_stencil(&mut self) -> (); // vk: Graphics // d3d12: ClearDepthStencilView
+use core::target;
+use Resources;
+
+pub struct BufferCopy {
+    src: usize,
+    dest: usize,
+    size: usize,
+}
+
+pub trait CommandBuffer<R: Resources> {
+    // vk: primary | inside
+    fn next_subpass(&mut self) -> (); // vk: Graphics // d3d12: needs to be emulated
+    // vk: primary | inside
+    fn end_renderpass(&mut self) -> (); // vk: Graphics // d3d12: needs to be emulated
+
     // vk: primary/seconday | inside
     fn clear_attachment(&mut self) -> (); // vk: Graphics
+    // vk: primary/seconday | inside
+    fn draw(&mut self, start: VertexCount, count: VertexCount, Option<InstanceParams>) -> (); // vk: Graphics // d3d12: DrawInstanced
+    // vk: primary/seconday | inside
+    fn draw_indexed(&mut self, start: VertexCount, count: VertexCount, base: VertexCount, Option<InstanceParams>) -> (); // vk: Graphics // d3d12: DrawIndexedInstanced
+    // vk: primary/seconday | inside
+    fn draw_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
+    // vk: primary/seconday | inside
+    fn draw_indexed_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
+
+    // vk: primary/seconday | outside // d3d12: primary
+    fn clear_depth_stencil(&mut self) -> (); // vk: Graphics // d3d12: ClearDepthStencilView
 
     // vk: primary | outside
-    fn begin_renderpass(&mut self) -> (); // vk: Graphics // d3d12: !!
-    // vk: primary | inside
-    fn next_subpass(&mut self) -> (); // vk: Graphics // d3d12: !!
-    // vk: primary | inside
-    fn end_renderpass(&mut self) -> (); // vk: Graphics // d3d12: !!
-
+    fn begin_renderpass(&mut self) -> (); // vk: Graphics // d3d12: needs to be emulated
+    
     // vk: primary/seconday | outside
     fn blit_image(&mut self) -> (); // vk: Graphics
     // vk: primary/seconday | outside // d3d12: primary
     fn resolve_image(&mut self) -> (); // vk: Graphics // d3d12: ResolveSubresource?
 
     // vk: primary/seconday | inside/outside
-    fn bind_index_buffer(&mut self) -> (); // vk: Graphics // d3d12: IASetIndexBuffer
+    fn bind_index_buffer(&mut self, R::Buffer, IndexType) -> (); // vk: Graphics // d3d12: IASetIndexBuffer
     // vk: primary/seconday | inside/outside
     fn bind_vertex_buffers(&mut self) -> (); // vk: Graphics // d3d12: IASetVertexBuffers
 
-    // vk: primary/seconday | inside
-    fn draw(&mut self) -> (); // vk: Graphics // d3d12: DrawInstanced
-    // vk: primary/seconday | inside
-    fn draw_indexed(&mut self) -> (); // vk: Graphics // d3d12: DrawIndexedInstanced
-    // vk: primary/seconday | inside
-    fn draw_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
-    // vk: primary/seconday | inside
-    fn draw_indexed_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
-
     // vk: primary/seconday | inside/outside // d3d12: primary
-    fn set_viewports(&mut self) -> (); // vk: Graphics // d3d12: RSSetViewports
+    fn set_viewports(&mut self, &[target::Rect]) -> (); // vk: Graphics // d3d12: RSSetViewports
     // vk: primary/seconday | inside/outside // d3d12: primary
-    fn set_scissors(&mut self) -> (); // vk: Graphics // d3d12: RSSetScissorRects
+    fn set_scissors(&mut self, &[target::Rect]) -> (); // vk: Graphics // d3d12: RSSetScissorRects
     // vk: primary/seconday | inside/outside
     // fn set_line_width(&mut self) -> (); // vk: Graphics // d3d12:! unsupported?
     // vk: primary/seconday | inside/outside
     // fn set_depth_bias(&mut self) -> (); // vk: Graphics // d3d12:! part of the PSO
 
-    // vk: primary/seconday | inside/outside
-    fn set_blend_constants(&mut self) -> (); // vk: Graphics // d3d12: OMSetBlendFactor
     // vk: primary/seconday | inside/outside
     // fn set_depth_bounds(&mut self) -> (); // vk: Graphics
     // vk: primary/seconday | inside/outside
@@ -62,30 +70,33 @@ pub trait GraphicsCommandBuffer : UniversalCommandBuffer + GraphicsComputeComman
     // vk: primary/seconday | inside/outside
     // fn set_stencil_write_mask(&mut self) -> (); // vk: Graphics // d3d12:! part of the PSO
     // vk: primary/seconday | inside/outside
-    fn set_stencil_reference(&mut self) -> (); // vk: Graphics // d3d12: OMSetStencilRef
-}
 
-pub trait ComputeCommandBuffer : UniversalCommandBuffer + GraphicsComputeCommandBuffer {
+    // Merged:
+    // vk: primary/seconday | inside/outside
+    // fn set_blend_constants(&mut self) -> (); // vk: Graphics // d3d12: OMSetBlendFactor
+    // fn set_stencil_reference(&mut self) -> (); // vk: Graphics // d3d12: OMSetStencilRef
+    fn set_ref_values(&mut self, state::RefValues);
+
     // vk: primary/seconday | outside
     fn dispatch(&mut self) -> (); // vk: Compute // d3d12: Dispatch
     // vk: primary/seconday | outside
     fn dispatch_indirect(&mut self) -> (); // vk: Compute // d3d12: ExecuteIndirect !
-}
 
-pub trait GraphicsComputeCommandBuffer : UniversalCommandBuffer {
     // vk: primary/seconday | outside
-    fn clear_color(&mut self) -> (); // vk: Graphics/Compute // d3d12: ClearRenderTargetView
+    fn clear_color(&mut self, R::RenderTargetView, ClearColor) -> (); // vk: Graphics/Compute // d3d12: ClearRenderTargetView
 
     // vk: primary/seconday | outside
     fn fill_buffer(&mut self) -> (); // vk: Graphics/Compute
 
     // vk: primary/seconday | inside/outside
-    fn bind_pipeline(&mut self) -> (); // vk: Graphics/Compute // d3d12: SetPipelineState
+    fn bind_pipeline(&mut self, R::PipelineStateObject) -> (); // vk: Graphics/Compute // d3d12: SetPipelineState
     // vk: primary/seconday | inside/outside
     fn bind_descriptor_sets(&mut self) -> (); // vk: Graphics/Compute
     // vk: primary/seconday | inside/outside
     fn push_constants(&mut self) -> (); // vk: Graphics/Compute // d3d12: set root constants
 
+    // Ignore for the moment (:
+    /*
     // vk: primary/seconday | outside
     fn set_event(&mut self) -> (); // vk: Graphics/Compute // d3d12:! emulation needed
     // vk: primary/seconday | outside
@@ -103,15 +114,14 @@ pub trait GraphicsComputeCommandBuffer : UniversalCommandBuffer {
     fn write_timestamp(&mut self) -> (); // vk: Graphics/Compute
     // vk: primary/seconday | outside
     fn copy_query_pool_results(&mut self) -> (); // vk: Graphics/Compute
-}
+    */
 
-pub trait UniversalCommandBuffer {
     // vk: primary/seconday | outside
-    fn update_buffer(&mut self) -> (); // vk: Graphics/Compute/Transfer
+    fn update_buffer(&mut self, R::Buffer, data: &[u8], offset: usize) -> (); // vk: Graphics/Compute/Transfer
     // vk: primary/seconday | outside // d3d12: primary
-    fn copy_buffer(&mut self) -> (); // vk: Graphics/Compute/Transfer // d3d12: CopyBufferRegion
+    fn copy_buffer(&mut self, src: R::Buffer, dest: R::Buffer, &[BufferCopy]) -> (); // vk: Graphics/Compute/Transfer // d3d12: CopyBufferRegion
     // vk: primary/seconday | outside // d3d12: primary
-    fn copy_image(&mut self) -> (); // vk: Graphics/Compute/Transfer // d3d12: CopyTextureRegion
+    fn copy_image(&mut self, src: R::Image, dest: R::Image) -> (); // vk: Graphics/Compute/Transfer // d3d12: CopyTextureRegion
     // vk: primary/seconday | outside // d3d12: primary
     fn copy_buffer_to_image(&mut self) -> (); // vk: Graphics/Compute/Transfer
     // vk: primary/seconday | outside // d3d12: primary
