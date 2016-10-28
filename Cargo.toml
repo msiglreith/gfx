@@ -11,6 +11,7 @@ documentation = "https://docs.rs/gfx"
 [features]
 default = []
 vulkan = ["gfx_device_vulkan", "gfx_window_vulkan"]
+vulkan_next = ["gfx_device_vulkan_next", "gfx_window_vulkan"]
 metal = ["gfx_device_metal", "gfx_window_metal"]
 unstable = []
 
@@ -23,12 +24,18 @@ env_logger = "0.3"
 glutin = "0.6"
 winit = "0.5.1"
 gfx_core = { path = "src/core", version = "0.5" }
+gfx_core_next = { path = "src/core_next", version = "0.1" }
 gfx = { path = "src/render", version = "0.13" }
 gfx_device_gl = { path = "src/backend/gl", version = "0.12" }
 gfx_window_glutin = { path = "src/window/glutin", version = "0.13" }
 
 [dependencies.gfx_device_vulkan]
 path = "src/backend/vulkan"
+version = "0.1"
+optional = true
+
+[dependencies.gfx_device_vulkan_next]
+path = "src/backend/vulkan_next"
 version = "0.1"
 optional = true
 

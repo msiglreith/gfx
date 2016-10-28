@@ -13,12 +13,15 @@
 // limitations under the License.
 
 use core::target;
+use core::{IndexType, VertexCount};
+use core::command::{ClearColor, InstanceParams};
+use {pso, state};
 use Resources;
 
 pub struct BufferCopy {
-    src: usize,
-    dest: usize,
-    size: usize,
+    pub src: usize,
+    pub dest: usize,
+    pub size: usize,
 }
 
 pub trait CommandBuffer<R: Resources> {
@@ -30,19 +33,20 @@ pub trait CommandBuffer<R: Resources> {
     // vk: primary/seconday | inside
     fn clear_attachment(&mut self) -> (); // vk: Graphics
     // vk: primary/seconday | inside
-    fn draw(&mut self, start: VertexCount, count: VertexCount, Option<InstanceParams>) -> (); // vk: Graphics // d3d12: DrawInstanced
+    fn draw(&mut self, start: VertexCount, count: VertexCount, Option<InstanceParams>); // vk: Graphics // d3d12: DrawInstanced
     // vk: primary/seconday | inside
-    fn draw_indexed(&mut self, start: VertexCount, count: VertexCount, base: VertexCount, Option<InstanceParams>) -> (); // vk: Graphics // d3d12: DrawIndexedInstanced
+    fn draw_indexed(&mut self, start: VertexCount, count: VertexCount, base: VertexCount, Option<InstanceParams>); // vk: Graphics // d3d12: DrawIndexedInstanced
     // vk: primary/seconday | inside
     fn draw_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
     // vk: primary/seconday | inside
     fn draw_indexed_indirect(&mut self) -> (); // vk: Graphics // d3d12: ExecuteIndirect !
 
     // vk: primary/seconday | outside // d3d12: primary
-    fn clear_depth_stencil(&mut self) -> (); // vk: Graphics // d3d12: ClearDepthStencilView
+    fn clear_depth_stencil(&mut self, R::DepthStencilView,
+                           Option<target::Depth>, Option<target::Stencil>); // vk: Graphics // d3d12: ClearDepthStencilView
 
     // vk: primary | outside
-    fn begin_renderpass(&mut self) -> (); // vk: Graphics // d3d12: needs to be emulated
+    fn begin_renderpass(&mut self); // vk: Graphics // d3d12: needs to be emulated
     
     // vk: primary/seconday | outside
     fn blit_image(&mut self) -> (); // vk: Graphics
@@ -50,14 +54,14 @@ pub trait CommandBuffer<R: Resources> {
     fn resolve_image(&mut self) -> (); // vk: Graphics // d3d12: ResolveSubresource?
 
     // vk: primary/seconday | inside/outside
-    fn bind_index_buffer(&mut self, R::Buffer, IndexType) -> (); // vk: Graphics // d3d12: IASetIndexBuffer
+    fn bind_index_buffer(&mut self, R::Buffer, IndexType); // vk: Graphics // d3d12: IASetIndexBuffer
     // vk: primary/seconday | inside/outside
-    fn bind_vertex_buffers(&mut self) -> (); // vk: Graphics // d3d12: IASetVertexBuffers
+    fn bind_vertex_buffers(&mut self, pso::VertexBufferSet<R>); // vk: Graphics // d3d12: IASetVertexBuffers
 
     // vk: primary/seconday | inside/outside // d3d12: primary
-    fn set_viewports(&mut self, &[target::Rect]) -> (); // vk: Graphics // d3d12: RSSetViewports
+    fn set_viewports(&mut self, &[target::Rect]); // vk: Graphics // d3d12: RSSetViewports
     // vk: primary/seconday | inside/outside // d3d12: primary
-    fn set_scissors(&mut self, &[target::Rect]) -> (); // vk: Graphics // d3d12: RSSetScissorRects
+    fn set_scissors(&mut self, &[target::Rect]); // vk: Graphics // d3d12: RSSetScissorRects
     // vk: primary/seconday | inside/outside
     // fn set_line_width(&mut self) -> (); // vk: Graphics // d3d12:! unsupported?
     // vk: primary/seconday | inside/outside
@@ -78,7 +82,7 @@ pub trait CommandBuffer<R: Resources> {
     fn set_ref_values(&mut self, state::RefValues);
 
     // vk: primary/seconday | outside
-    fn dispatch(&mut self) -> (); // vk: Compute // d3d12: Dispatch
+    fn dispatch(&mut self, u32, u32, u32); // vk: Compute // d3d12: Dispatch
     // vk: primary/seconday | outside
     fn dispatch_indirect(&mut self) -> (); // vk: Compute // d3d12: ExecuteIndirect !
 
@@ -89,7 +93,7 @@ pub trait CommandBuffer<R: Resources> {
     fn fill_buffer(&mut self) -> (); // vk: Graphics/Compute
 
     // vk: primary/seconday | inside/outside
-    fn bind_pipeline(&mut self, R::PipelineStateObject) -> (); // vk: Graphics/Compute // d3d12: SetPipelineState
+    fn bind_pipeline(&mut self, R::PipelineStateObject); // vk: Graphics/Compute // d3d12: SetPipelineState
     // vk: primary/seconday | inside/outside
     fn bind_descriptor_sets(&mut self) -> (); // vk: Graphics/Compute
     // vk: primary/seconday | inside/outside

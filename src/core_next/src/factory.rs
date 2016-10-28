@@ -13,6 +13,8 @@
 // limitations under the License.
 
 use Resources;
+use {buffer, handle, shade};
+use {VertexShader, GeometryShader, PixelShader};
 
 pub trait Factory<R: Resources> {
     fn create_fence(&mut self) -> ();
@@ -23,7 +25,7 @@ pub trait Factory<R: Resources> {
     fn create_compute_pipelines(&mut self) -> ();
     fn create_graphics_pipelines(&mut self) -> ();
     fn create_pipeline_cache(&mut self) -> ();
-    fn create_buffer(&mut self) -> ();
+    fn create_buffer_raw(&mut self, buffer::Info) -> Result<handle::RawBuffer<R>, buffer::CreationError>;
     fn create_buffer_view(&mut self) -> ();
     fn create_image(&mut self) -> ();
     fn create_image_view(&mut self) -> ();

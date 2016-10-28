@@ -12,13 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
+extern crate bitflags;
+
 extern crate gfx_core as core;
 extern crate draw_state;
 
-pub use draw_state::{state, target};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::any::Any;
 
+pub use draw_state::{state, target};
+pub use self::factory::Factory;
+
+pub use core::{format, memory};
+pub use core::{MAX_COLOR_TARGETS, MAX_VERTEX_ATTRIBUTES, MAX_CONSTANT_BUFFERS,
+     MAX_RESOURCE_VIEWS, MAX_UNORDERED_VIEWS, MAX_SAMPLERS};
+pub use core::{AttributeSlot, ColorSlot, ConstantBufferSlot, ResourceViewSlot, SamplerSlot, UnorderedViewSlot};
+pub use core::Primitive;
+
+pub mod buffer;
 pub mod command;
 pub mod factory;
+pub mod handle;
+pub mod mapping;
+pub mod pso;
+pub mod shade;
+pub mod texture;
 
 pub trait Queue {
 
@@ -39,6 +59,48 @@ pub trait Instance {
 
 pub trait SwapChain {
     fn swap_buffers(&mut self);
+}
+
+/// Operations that must be provided by a fence.
+pub trait Fence {
+    /// Stalls the current thread until the fence is satisfied
+    fn wait(&self);
+}
+
+macro_rules! define_shaders {
+    ($($name:ident),+) => {$(
+        #[allow(missing_docs)]
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        pub struct $name<R: Resources>(handle::Shader<R>);
+        impl<R: Resources> $name<R> {
+            #[allow(missing_docs)]
+            pub fn reference(&self, man: &mut handle::Manager<R>) -> &R::Shader {
+                man.ref_shader(&self.0)
+            }
+        }
+    )+}
+}
+
+define_shaders!(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader);
+
+/// A complete set of shaders to link a program.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum ShaderSet<R: Resources> {
+    /// Simple program: Vs-Ps
+    Simple(VertexShader<R>, PixelShader<R>),
+    /// Geometry shader programs: Vs-Gs-Ps
+    Geometry(VertexShader<R>, GeometryShader<R>, PixelShader<R>),
+    //TODO: Tessellated, TessellatedGeometry, TransformFeedback
+}
+
+impl<R: Resources> ShaderSet<R> {
+    /// Return the aggregated stage usage for the set.
+    pub fn get_usage(&self) -> shade::Usage {
+        match self {
+            &ShaderSet::Simple(..) => shade::VERTEX | shade::PIXEL,
+            &ShaderSet::Geometry(..) => shade::VERTEX | shade::GEOMETRY | shade::PIXEL,
+        }
+    }
 }
 
 /// Different types of a specific API. 
