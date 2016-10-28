@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use Resources;
+use {Resources, VertexCount, InstanceParams};
 use {buffer, handle, shade};
 use {VertexShader, GeometryShader, PixelShader};
 

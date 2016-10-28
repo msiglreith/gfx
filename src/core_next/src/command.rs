@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use core::target;
-use core::{IndexType, VertexCount};
-use core::command::{ClearColor, InstanceParams};
-use {pso, state};
-use Resources;
+use {pso, state, target};
+use {Resources, VertexCount, IndexType, InstanceParams, ClearColor};
 
 pub struct BufferCopy {
     pub src: usize,

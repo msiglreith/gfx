@@ -27,4 +27,7 @@ name = "gfx_device_vulkan_next"
 
 [dependencies]
 log = "0.3"
+shared_library = "0.1"
 gfx_core_next = { path = "../../core_next", version = "0.1.0" }
+vk-sys = { git = "https://github.com/sectopod/vulkano", branch = "bind" }
+spirv-utils = { git = "https://github.com/msiglreith/spirv-utils.git", branch = "gfx" }

@@ -1,8 +1,21 @@
 
+#[macro_use]
+extern crate log;
+extern crate shared_library;
 extern crate gfx_core_next as core;
+extern crate vk_sys as vk;
+extern crate spirv_utils;
 
 mod command;
+mod factory;
+mod mirror;
 mod native;
+
+use std::cell::RefCell;
+use std::mem;
+use std::ptr;
+use std::sync::Arc;
+use shared_library::dynamic_library::DynamicLibrary;
 
 struct PhysicalDeviceInfo {
     device: vk::PhysicalDevice,
@@ -77,11 +90,11 @@ impl core::Resources for Resources {
     type Shader               = native::Shader;
     type Program              = native::Program;
     type PipelineStateObject  = native::Pipeline;
-    type Image                = native::Texture;
-    type ShaderResourceView   = native::TextureView; //TODO: buffer view
+    type Image                = native::Image;
+    type ShaderResourceView   = native::ImageView; //TODO: buffer view
     type UnorderedAccessView  = ();
-    type RenderTargetView     = native::TextureView;
-    type DepthStencilView     = native::TextureView;
+    type RenderTargetView     = native::ImageView;
+    type DepthStencilView     = native::ImageView;
     type Sampler              = vk::Sampler;
     type Fence                = Fence;
     type Mapping              = factory::MappingGate;

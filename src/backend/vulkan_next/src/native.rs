@@ -44,32 +44,31 @@ pub struct Buffer {
 unsafe impl Send for Buffer {}
 unsafe impl Sync for Buffer {}
 
-
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Texture {
+pub struct Image {
     pub image: vk::Image,
     pub layout: cell::Cell<vk::ImageLayout>,
     pub memory: vk::DeviceMemory,
 }
-impl hash::Hash for Texture {
+impl hash::Hash for Image {
     fn hash<H>(&self, state: &mut H) where H: hash::Hasher {
         self.image.hash(state);
         self.layout.get().hash(state);
         self.memory.hash(state);
     }
 }
-unsafe impl Send for Texture {}
-unsafe impl Sync for Texture {}
+unsafe impl Send for Image {}
+unsafe impl Sync for Image {}
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
-pub struct TextureView {
+pub struct ImageView {
     pub image: vk::Image,
     pub view: vk::ImageView,
     pub layout: vk::ImageLayout,
     pub sub_range: vk::ImageSubresourceRange,
 }
-unsafe impl Send for TextureView {}
-unsafe impl Sync for TextureView {}
+unsafe impl Send for ImageView {}
+unsafe impl Sync for ImageView {}
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Pipeline {

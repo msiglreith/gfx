@@ -18,6 +18,9 @@ use vk;
 use core::{self, command, pso, shade, target, texture as tex, handle, memory};
 use core::state::RefValues;
 use core::{IndexType, VertexCount};
+use core::{MAX_VERTEX_ATTRIBUTES, MAX_CONSTANT_BUFFERS,
+           MAX_RESOURCE_VIEWS, MAX_UNORDERED_VIEWS,
+           MAX_SAMPLERS, MAX_COLOR_TARGETS};
 use native;
 use {Resources, Share, SharePointer};
 

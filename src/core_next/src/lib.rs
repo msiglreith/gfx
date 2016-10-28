@@ -30,6 +30,8 @@ pub use core::{MAX_COLOR_TARGETS, MAX_VERTEX_ATTRIBUTES, MAX_CONSTANT_BUFFERS,
      MAX_RESOURCE_VIEWS, MAX_UNORDERED_VIEWS, MAX_SAMPLERS};
 pub use core::{AttributeSlot, ColorSlot, ConstantBufferSlot, ResourceViewSlot, SamplerSlot, UnorderedViewSlot};
 pub use core::Primitive;
+pub use core::{IndexType, VertexCount};
+pub use core::command::{ClearColor, InstanceParams};
 
 pub mod buffer;
 pub mod command;
