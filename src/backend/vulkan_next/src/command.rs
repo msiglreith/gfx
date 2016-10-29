@@ -16,9 +16,11 @@ impl command::CommandBuffer<Resources> for Buffer {
     fn next_subpass(&mut self) -> () {
         unimplemented!()
     }
+    
     fn end_renderpass(&mut self) -> () {
         unimplemented!()
     }
+    
     fn clear_attachment(&mut self) -> () {
         unimplemented!()
     }
@@ -62,17 +64,21 @@ impl command::CommandBuffer<Resources> for Buffer {
 
     fn clear_depth_stencil(&mut self, dsv: native::ImageView,
                            depth: Option<target::Depth>, stencil: Option<target::Stencil>) {
-
+        unimplemented!()
     }
+    
     fn begin_renderpass(&mut self) {
-
+        unimplemented!()
     }
+    
     fn blit_image(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn resolve_image(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn bind_index_buffer(&mut self, buffer: native::Buffer, index_type: IndexType) {
         let (_, vk) = self.share.get_device();
         let index_type = match index_type {
@@ -88,6 +94,7 @@ impl command::CommandBuffer<Resources> for Buffer {
             );
         }
     }
+    
     fn bind_vertex_buffers(&mut self, vbs: pso::VertexBufferSet<Resources>) {
         let (_, vk) = self.share.get_device();
         let mut buffers = [0; MAX_VERTEX_ATTRIBUTES];
@@ -158,8 +165,9 @@ impl command::CommandBuffer<Resources> for Buffer {
             );
         }
     }
+    
     fn set_ref_values(&mut self, _: state::RefValues) {
-
+        unimplemented!()
     }
 
     fn dispatch(&mut self, x: u32, y: u32, z: u32) {
@@ -168,6 +176,7 @@ impl command::CommandBuffer<Resources> for Buffer {
             vk.CmdDispatch(self.inner, x, y, z);
         }
     }
+    
     fn dispatch_indirect(&mut self) -> () {
         unimplemented!()
     }
@@ -185,7 +194,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn fill_buffer(&mut self) -> () {
-
+        unimplemented!()
     }
 
     fn bind_pipeline(&mut self, pso: native::Pipeline) {
@@ -194,12 +203,15 @@ impl command::CommandBuffer<Resources> for Buffer {
             vk.CmdBindPipeline(self.inner, vk::PIPELINE_BIND_POINT_GRAPHICS, pso.pipeline); // TODO: differ between graphics/compute
         }
     }
+    
     fn bind_descriptor_sets(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn push_constants(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn update_buffer(&mut self, buffer: native::Buffer, data: &[u8], offset: usize) -> () {
         let (_, vk) = self.share.get_device();
         unsafe {
@@ -208,22 +220,26 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn copy_buffer(&mut self, src: native::Buffer, dest: native::Buffer, _: &[BufferCopy]) -> () {
-
+        unimplemented!()
     }
+    
     fn copy_image(&mut self, src: native::Image, dest: native::Image) -> () {
-
+        unimplemented!()
     }
+    
     fn copy_buffer_to_image(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn copy_image_to_buffer(&mut self) -> () {
-
+        unimplemented!()
     }
 
     fn pipeline_barrier(&mut self) -> () {
-
+        unimplemented!()
     }
+    
     fn execute_commands(&mut self) -> () {
-
+        unimplemented!()
     }
 }

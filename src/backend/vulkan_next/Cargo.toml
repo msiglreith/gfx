@@ -31,3 +31,11 @@ shared_library = "0.1"
 gfx_core_next = { path = "../../core_next", version = "0.1.0" }
 vk-sys = { git = "https://github.com/sectopod/vulkano", branch = "bind" }
 spirv-utils = { git = "https://github.com/msiglreith/spirv-utils.git", branch = "gfx" }
+winit = "0.5"
+gfx_device_vulkan = { path = "../vulkan", version = "0.1" }
+lazy_static = "0.2.1"
+
+[target.'cfg(unix)'.dependencies]
+xcb = "0.7"
+[target.'cfg(windows)'.dependencies]
+kernel32-sys = "0.2.2"

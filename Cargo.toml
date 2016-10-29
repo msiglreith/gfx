@@ -11,7 +11,7 @@ documentation = "https://docs.rs/gfx"
 [features]
 default = []
 vulkan = ["gfx_device_vulkan", "gfx_window_vulkan"]
-vulkan_next = ["gfx_device_vulkan_next", "gfx_window_vulkan"]
+vulkan_next = ["gfx_device_vulkan_next"]
 metal = ["gfx_device_metal", "gfx_window_metal"]
 unstable = []
 
@@ -113,6 +113,10 @@ path = "examples/mipmap/main.rs"
 [[example]]
 name = "particle"
 path = "examples/particle/main.rs"
+
+[[example]]
+name = "core_next"
+path = "examples/next_api/main.rs"
 
 [dev_dependencies]
 log = "0.3"
