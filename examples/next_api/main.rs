@@ -8,11 +8,12 @@ pub type ColorFormat = gfx::format::Bgra8;
 
 fn main() {
     env_logger::init().unwrap();
-    let mut window = winit::WindowBuilder::new()
+    let window = winit::WindowBuilder::new()
         .with_dimensions(1440, 900)
         .with_title("core_next".to_string()).build().unwrap();
 
     let instance = vulkan::Instance::new("next", 1, &[], &["VK_KHR_surface"]);
+    let device = vulkan::Device::new(&instance, &["VK_KHR_swapchain"]);
 
     'main: loop {
         for event in window.poll_events() {

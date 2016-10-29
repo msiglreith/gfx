@@ -54,7 +54,7 @@ lazy_static! {
     };
 }
 
-struct PhysicalDeviceInfo {
+pub struct PhysicalDeviceInfo {
     device: vk::PhysicalDevice,
     _properties: vk::PhysicalDeviceProperties,
     queue_families: Vec<vk::QueueFamilyProperties>,
@@ -250,10 +250,13 @@ const SURFACE_EXTENSIONS: &'static [&'static str] = &[
 pub struct Instance {
     inner: vk::Instance,
     pointers: vk::InstancePointers,
+    physical_devices: Vec<PhysicalDeviceInfo>,
 }
 
+pub type InstancePointer = Arc<Instance>;
+
 impl Instance {
-    pub fn new(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&str]) -> Instance {
+    pub fn new(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&str]) -> InstancePointer {
         let entry_points = vk::EntryPoints::load(|name| unsafe {
             mem::transmute(vk_library.GetInstanceProcAddr(0, name.as_ptr()))
         });
@@ -318,14 +321,102 @@ impl Instance {
             mem::transmute(vk_library.GetInstanceProcAddr(instance, name.as_ptr()))
         });
 
-        Instance {
+        let physical_devices = {
+            let mut num = 0;
+            assert_eq!(vk::SUCCESS, unsafe {
+                inst_pointers.EnumeratePhysicalDevices(instance, &mut num, ptr::null_mut())
+            });
+            let mut devices = Vec::with_capacity(num as usize);
+            assert_eq!(vk::SUCCESS, unsafe {
+                inst_pointers.EnumeratePhysicalDevices(instance, &mut num, devices.as_mut_ptr())
+            });
+            unsafe { devices.set_len(num as usize); }
+            devices
+        };
+        
+        let devices = physical_devices.iter()
+            .map(|dev| PhysicalDeviceInfo::new(*dev, &inst_pointers))
+            .collect::<Vec<_>>();
+
+        Arc::new(Instance {
             inner: instance,
             pointers: inst_pointers,
-        }
+            physical_devices: devices,
+        })
     }
 
     pub fn get(&self) -> (vk::Instance, &vk::InstancePointers) {
         (self.inner, &self.pointers)
+    }
+
+    pub fn physical_devices(&self) -> &Vec<PhysicalDeviceInfo> {
+        &self.physical_devices
+    }
+}
+
+pub struct Device {
+    inner: vk::Device,
+    pointers: vk::DevicePointers,
+}
+
+impl Device {
+    pub fn new(instance: &InstancePointer, dev_extensions: &[&str]) -> Arc<Device> {
+        let (dev, (qf_id, _))  = {
+            let devices = instance.physical_devices();
+            devices.iter()
+                .flat_map(|d| std::iter::repeat(d).zip(d.queue_families.iter().enumerate()))
+                .find(|&(_, (_, qf))| qf.queueFlags & vk::QUEUE_GRAPHICS_BIT != 0)
+                .unwrap()
+        };
+
+        info!("Chosen physical device {:?} with queue family {}", dev.device, qf_id);
+
+        let (_, vk) = instance.get();
+
+        let device = {
+            let cstrings = dev_extensions.iter()
+                                         .map(|&s| CString::new(s).unwrap())
+                                         .collect::<Vec<_>>();
+            let str_pointers = cstrings.iter().map(|s| s.as_ptr())
+                                       .collect::<Vec<_>>();
+
+            let queue_info = vk::DeviceQueueCreateInfo {
+                sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                queueFamilyIndex: qf_id as u32,
+                queueCount: 1,
+                pQueuePriorities: &1.0,
+            };
+            let features = unsafe{ mem::zeroed() };
+
+            let dev_info = vk::DeviceCreateInfo {
+                sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                queueCreateInfoCount: 1,
+                pQueueCreateInfos: &queue_info,
+                enabledLayerCount: 0,
+                ppEnabledLayerNames: ptr::null(),
+                enabledExtensionCount: str_pointers.len() as u32,
+                ppEnabledExtensionNames: str_pointers.as_ptr(),
+                pEnabledFeatures: &features,
+            };
+            let mut out = 0;
+            assert_eq!(vk::SUCCESS, unsafe {
+                vk.CreateDevice(dev.device, &dev_info, ptr::null(), &mut out)
+            });
+            out
+        };
+
+        let dev_pointers = vk::DevicePointers::load(|name| unsafe {
+            vk.GetDeviceProcAddr(device, name.as_ptr()) as *const _
+        });
+
+        Arc::new(Device {
+            inner: device,
+            pointers: dev_pointers,
+        })
     }
 }
 
