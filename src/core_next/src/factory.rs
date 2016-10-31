@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {Resources, VertexCount, InstanceParams};
-use {buffer, handle, shade};
+use {buffer, format, handle, shade, texture};
 use {VertexShader, GeometryShader, PixelShader};
 
 pub trait Factory<R: Resources> {
@@ -27,9 +27,9 @@ pub trait Factory<R: Resources> {
     fn create_pipeline_cache(&mut self) -> ();
     fn create_buffer_raw(&mut self, buffer::Info) -> Result<handle::RawBuffer<R>, buffer::CreationError>;
     fn create_buffer_view(&mut self) -> ();
-    fn create_image(&mut self) -> ();
+    fn create_image(&mut self, desc: texture::Info, hint: Option<format::ChannelType>) -> Result<handle::RawTexture<R>, texture::CreationError>;
     fn create_image_view(&mut self) -> ();
-    fn create_sampler(&mut self) -> ();
+    fn create_sampler(&mut self, info: texture::SamplerInfo) -> ();
 
     /// Compiles a `VertexShader` from source.
     fn create_shader_vertex(&mut self, code: &[u8]) -> Result<VertexShader<R>, shade::CreateShaderError> {

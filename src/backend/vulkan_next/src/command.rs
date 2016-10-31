@@ -4,11 +4,17 @@ use core::{command, pso, state, target};
 use core::{ClearColor, VertexCount, IndexType, InstanceParams};
 use core::MAX_VERTEX_ATTRIBUTES;
 use core::command::BufferCopy;
-use {Resources, SharePointer};
+use {Resources, Device, SharePointer};
 use native;
+use std::sync::Arc;
+
+pub struct Pool {
+    inner: vk::CommandPool,
+}
 
 pub struct Buffer {
     inner: vk::CommandBuffer,
+    device: Arc<Device>,
     share: SharePointer,
 }
 
@@ -26,7 +32,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn draw(&mut self, vertex_start: VertexCount, vertex_count: VertexCount, instance: Option<InstanceParams>) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let (instance_count, instance_start) = instance.unwrap_or((1, 0));
         unsafe {
             vk.CmdDraw(
@@ -40,7 +46,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn draw_indexed(&mut self, index_start: VertexCount, index_count: VertexCount, vertex_base: VertexCount, instance: Option<InstanceParams>) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let (instance_count, instance_start) = instance.unwrap_or((1, 0));
         unsafe {
             vk.CmdDrawIndexed(
@@ -80,7 +86,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
     
     fn bind_index_buffer(&mut self, buffer: native::Buffer, index_type: IndexType) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let index_type = match index_type {
             IndexType::U16 => vk::INDEX_TYPE_UINT16,
             IndexType::U32 => vk::INDEX_TYPE_UINT32,
@@ -96,7 +102,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
     
     fn bind_vertex_buffers(&mut self, vbs: pso::VertexBufferSet<Resources>) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let mut buffers = [0; MAX_VERTEX_ATTRIBUTES];
         let mut offsets = [0u64; MAX_VERTEX_ATTRIBUTES];
         for i in 0 .. MAX_VERTEX_ATTRIBUTES {
@@ -119,7 +125,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn set_viewports(&mut self, viewports: &[target::Rect]) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let viewports = viewports.iter().map(|viewport| {
             vk::Viewport {
                 x: viewport.x as f32,
@@ -142,7 +148,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn set_scissors(&mut self, scissors: &[target::Rect]) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let scissors = scissors.iter().map(|scissor| {
             vk::Rect2D {
                 offset: vk::Offset2D {
@@ -171,7 +177,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn dispatch(&mut self, x: u32, y: u32, z: u32) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         unsafe {
             vk.CmdDispatch(self.inner, x, y, z);
         }
@@ -182,7 +188,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn clear_color(&mut self, rtv: native::ImageView, color: ClearColor) -> () {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         let value = match color {
             ClearColor::Float(v) => vk::ClearColorValue::float32(v),
             ClearColor::Int(v)   => vk::ClearColorValue::int32(v),
@@ -198,7 +204,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
 
     fn bind_pipeline(&mut self, pso: native::Pipeline) {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         unsafe {
             vk.CmdBindPipeline(self.inner, vk::PIPELINE_BIND_POINT_GRAPHICS, pso.pipeline); // TODO: differ between graphics/compute
         }
@@ -213,7 +219,7 @@ impl command::CommandBuffer<Resources> for Buffer {
     }
     
     fn update_buffer(&mut self, buffer: native::Buffer, data: &[u8], offset: usize) -> () {
-        let (_, vk) = self.share.get_device();
+        let (_, vk) = self.device.get();
         unsafe {
             vk.CmdUpdateBuffer(self.inner, buffer.buffer, offset as u64, data.len() as u64, data.as_ptr() as *const u32);
         }

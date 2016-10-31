@@ -22,6 +22,7 @@ use winit::os::unix::WindowExt;
 use winit::os::windows::WindowExt;
 
 mod command;
+mod data;
 mod factory;
 mod mirror;
 mod native;
@@ -91,10 +92,101 @@ impl PhysicalDeviceInfo {
             },
         }
     }
+
+    pub fn open_device<F>(&self, instance: &InstancePointer, dev_extensions: &[&str], mut queue_filter: F) -> (Arc<Device>, Vec<Arc<Queue>>)
+        where F: FnMut(&vk::QueueFamilyProperties) -> bool
+    {
+        let (_, vk) = instance.get();
+
+        let queue_infos = self.queue_families.iter()
+                                .enumerate()
+                                .filter(|&(_, queue_family)| queue_filter(queue_family))
+                                .map(|(i, queue_family)| {
+                                    vk::DeviceQueueCreateInfo {
+                                        sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                        pNext: ptr::null(),
+                                        flags: 0,
+                                        queueFamilyIndex: i as u32,
+                                        queueCount: queue_family.queueCount,
+                                        pQueuePriorities: &1.0,
+                                    }
+                                }).collect::<Vec<_>>();
+
+        let device = {
+            let cstrings = dev_extensions.iter()
+                                         .map(|&s| CString::new(s).unwrap())
+                                         .collect::<Vec<_>>();
+            let str_pointers = cstrings.iter().map(|s| s.as_ptr())
+                                       .collect::<Vec<_>>();
+
+            let features = unsafe{ mem::zeroed() };
+
+            let dev_info = vk::DeviceCreateInfo {
+                sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                pNext: ptr::null(),
+                flags: 0,
+                queueCreateInfoCount: queue_infos.len() as u32,
+                pQueueCreateInfos: queue_infos.as_ptr(),
+                enabledLayerCount: 0,
+                ppEnabledLayerNames: ptr::null(),
+                enabledExtensionCount: str_pointers.len() as u32,
+                ppEnabledExtensionNames: str_pointers.as_ptr(),
+                pEnabledFeatures: &features,
+            };
+            let mut out = 0;
+            assert_eq!(vk::SUCCESS, unsafe {
+                vk.CreateDevice(self.device, &dev_info, ptr::null(), &mut out)
+            });
+            out
+        };
+
+        let dev_pointers = vk::DevicePointers::load(|name| unsafe {
+            vk.GetDeviceProcAddr(device, name.as_ptr()) as *const _
+        });
+
+        let device = Arc::new(Device {
+            inner: device,
+            physical: self.device,
+            pointers: dev_pointers,
+        });
+
+        let queues = self.queue_families.iter()
+                                .enumerate()
+                                .filter(|&(_, queue_family)| queue_filter(queue_family))
+                                .flat_map(|(i, queue_family)| {
+                                            (0..queue_family.queueCount)
+                                                .map(|j| PhysicalDeviceInfo::open_queue(device.clone(), i as u32, j))
+                                                .collect::<Vec<_>>()
+                                    }).collect::<Vec<_>>();
+
+        (device, queues)
+    }
+
+    pub fn open_queue(device: Arc<Device>, family: u32, index: u32) -> Arc<Queue> {
+        let queue = unsafe {
+            let (dev, vk) = device.get();
+            let mut out = mem::zeroed();
+            vk.GetDeviceQueue(dev, family, index, &mut out);
+            out
+        };
+
+        Arc::new(Queue {
+            device: device,
+            inner: queue,
+
+        })
+    }
 }
 
 pub struct Queue {
+    device: Arc<Device>,
     inner: vk::Queue,
+}
+
+impl Queue {
+    pub fn get(&self) -> vk::Queue {
+        self.inner
+    }
 }
 
 // TODO: move this to the window creation
@@ -104,7 +196,7 @@ pub struct Surface {
 
 impl Surface {
     #[cfg(target_os = "windows")]
-    pub fn new(instance: Instance, window: &winit::Window) -> vk::SurfaceKHR {
+    pub fn new(instance: &Arc<Instance>, window: &winit::Window) -> Surface {
         let (inst, vk) = instance.get();
         let info = vk::Win32SurfaceCreateInfoKHR {
             sType: vk::STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -117,11 +209,13 @@ impl Surface {
         assert_eq!(vk::SUCCESS, unsafe {
             vk.CreateWin32SurfaceKHR(inst, &info, ptr::null(), &mut out)
         });
-        out
+        Surface {
+            inner: out,
+        }
     }
 
     #[cfg(unix)]
-    pub fn new(instance: Instance, window: &winit::Window) -> vk::SurfaceKHR {
+    pub fn new(instance: &Arc<Instance>, window: &winit::Window) -> Surface {
         let (inst, vk) = instance.get();
         let info = vk::XcbSurfaceCreateInfoKHR {
             sType: vk::STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
@@ -134,7 +228,9 @@ impl Surface {
         assert_eq!(vk::SUCCESS, unsafe {
             vk.CreateXcbSurfaceKHR(inst, &info, ptr::null(), &mut out)
         });
-        out
+        Surface {
+            inner: out,
+        }
     }
 }
 
@@ -144,15 +240,15 @@ pub struct SwapChain {
 }
 
 impl SwapChain {
-    pub fn new<T: core::format::RenderFormat>(backend: SharePointer, instance: Instance, surface: Surface, width: u32, height: u32) -> SwapChain {
-        let (dev, vk) = backend.get_device();
+    pub fn new<T: core::format::RenderFormat>(device: &Arc<Device>, instance: &Arc<Instance>, surface: Surface, width: u32, height: u32) -> SwapChain {
+        let (dev, vk) = device.get();
         let mut images: [vk::Image; 2] = [0; 2];
         let mut num = images.len() as u32;
         let format = <T as format::Formatted>::get_format();
 
         let surface_capabilities = {
             let (_, vk) = instance.get();
-            let dev = backend.get_physical_device();
+            let dev = device.get_physical_device();
             let mut capabilities: vk::SurfaceCapabilitiesKHR = unsafe { std::mem::uninitialized() };
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(dev, surface.inner, &mut capabilities)
@@ -163,8 +259,8 @@ impl SwapChain {
         /*
         // Determine whether a queue family of a physical device supports presentation to a given surface 
         let supports_presentation = {
-            let (_, vk) = backend.get_instance();
-            let dev = backend.get_physical_device();
+            let (_, vk) = device.get_instance();
+            let dev = device.get_physical_device();
             let mut supported = 0;
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfaceSupportKHR(dev, dev.get_family(), surface.inner, &mut supported)
@@ -175,7 +271,7 @@ impl SwapChain {
 
         let surface_formats = {
             let (_, vk) = instance.get();
-            let dev = backend.get_physical_device();
+            let dev = device.get_physical_device();
             let mut num = 0;
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface.inner, &mut num, ptr::null_mut())
@@ -190,7 +286,7 @@ impl SwapChain {
 
         let present_modes = {
             let (_, vk) = instance.get();
-            let dev = backend.get_physical_device();
+            let dev = device.get_physical_device();
             let mut num = 0;
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfacePresentModesKHR(dev, surface.inner, &mut num, ptr::null_mut())
@@ -234,6 +330,25 @@ impl SwapChain {
             inner: swapchain,
             surface: surface.inner,
         }
+    }
+
+    pub fn present(&self, present_queue: Arc<Queue>) {
+        let mut result = vk::SUCCESS;
+        let info = vk::PresentInfoKHR {
+            sType: vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            pNext: ptr::null(),
+            waitSemaphoreCount: 0,
+            pWaitSemaphores: ptr::null(),
+            swapchainCount: 1,
+            pSwapchains: &self.inner,
+            pImageIndices: &0, // &self.target_id,
+            pResults: &mut result,
+        };
+        let (_, vk) = present_queue.device.get();
+        unsafe {
+            vk.QueuePresentKHR(present_queue.get(), &info);
+        }
+        assert_eq!(vk::SUCCESS, result);
     }
 }
 
@@ -356,89 +471,25 @@ impl Instance {
 
 pub struct Device {
     inner: vk::Device,
+    physical: vk::PhysicalDevice,
     pointers: vk::DevicePointers,
 }
 
 impl Device {
-    pub fn new(instance: &InstancePointer, dev_extensions: &[&str]) -> Arc<Device> {
-        let (dev, (qf_id, _))  = {
-            let devices = instance.physical_devices();
-            devices.iter()
-                .flat_map(|d| std::iter::repeat(d).zip(d.queue_families.iter().enumerate()))
-                .find(|&(_, (_, qf))| qf.queueFlags & vk::QUEUE_GRAPHICS_BIT != 0)
-                .unwrap()
-        };
+    pub fn get(&self) -> (vk::Device, &vk::DevicePointers) {
+        (self.inner, &self.pointers)
+    }
 
-        info!("Chosen physical device {:?} with queue family {}", dev.device, qf_id);
-
-        let (_, vk) = instance.get();
-
-        let device = {
-            let cstrings = dev_extensions.iter()
-                                         .map(|&s| CString::new(s).unwrap())
-                                         .collect::<Vec<_>>();
-            let str_pointers = cstrings.iter().map(|s| s.as_ptr())
-                                       .collect::<Vec<_>>();
-
-            let queue_info = vk::DeviceQueueCreateInfo {
-                sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                pNext: ptr::null(),
-                flags: 0,
-                queueFamilyIndex: qf_id as u32,
-                queueCount: 1,
-                pQueuePriorities: &1.0,
-            };
-            let features = unsafe{ mem::zeroed() };
-
-            let dev_info = vk::DeviceCreateInfo {
-                sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                pNext: ptr::null(),
-                flags: 0,
-                queueCreateInfoCount: 1,
-                pQueueCreateInfos: &queue_info,
-                enabledLayerCount: 0,
-                ppEnabledLayerNames: ptr::null(),
-                enabledExtensionCount: str_pointers.len() as u32,
-                ppEnabledExtensionNames: str_pointers.as_ptr(),
-                pEnabledFeatures: &features,
-            };
-            let mut out = 0;
-            assert_eq!(vk::SUCCESS, unsafe {
-                vk.CreateDevice(dev.device, &dev_info, ptr::null(), &mut out)
-            });
-            out
-        };
-
-        let dev_pointers = vk::DevicePointers::load(|name| unsafe {
-            vk.GetDeviceProcAddr(device, name.as_ptr()) as *const _
-        });
-
-        Arc::new(Device {
-            inner: device,
-            pointers: dev_pointers,
-        })
+    pub fn get_physical_device(&self) -> vk::PhysicalDevice {
+        self.physical
     }
 }
 
-// TODO: outdated, split up
 pub struct Share {
-    device: vk::Device,
-    dev_pointers: vk::DevicePointers,
-    physical_device: vk::PhysicalDevice,
     handles: RefCell<core::handle::Manager<Resources>>,
 }
 
-pub type SharePointer = Arc<Share>;
-
-impl Share {
-    pub fn get_device(&self) -> (vk::Device, &vk::DevicePointers) {
-        (self.device, &self.dev_pointers)
-    }
-    pub fn get_physical_device(&self) -> vk::PhysicalDevice {
-        self.physical_device
-    }
-}
-
+type SharePointer = Arc<Share>;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Resources {}

@@ -13,7 +13,11 @@ fn main() {
         .with_title("core_next".to_string()).build().unwrap();
 
     let instance = vulkan::Instance::new("next", 1, &[], &["VK_KHR_surface"]);
-    let device = vulkan::Device::new(&instance, &["VK_KHR_swapchain"]);
+    let physical_device = &instance.physical_devices()[0];
+    let (device, queues) = physical_device.open_device(&instance, &["VK_KHR_swapchain"], |_| { true });
+
+    let surface = vulkan::Surface::new(&instance, &window);
+    let swap_chain = vulkan::SwapChain::new::<ColorFormat>(&device, &instance, surface, 1440, 900);
 
     'main: loop {
         for event in window.poll_events() {
