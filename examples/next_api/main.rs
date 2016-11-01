@@ -21,6 +21,9 @@ fn main() {
     let surface = vulkan::Surface::new(&instance, &window);
     let swap_chain = vulkan::SwapChain::new::<ColorFormat>(&mut factory, &instance, &queues[0], surface, 1440, 900);
 
+    let main_pool = queues[0].create_command_pool();
+    let cmd_buffers = main_pool.create_command_buffers(16);
+
     'main: loop {
         for event in window.poll_events() {
             match event {

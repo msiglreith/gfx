@@ -8,14 +8,16 @@ use {Resources, Device, SharePointer};
 use native;
 use std::sync::Arc;
 
-pub struct Pool {
-    inner: vk::CommandPool,
-}
-
 pub struct Buffer {
     inner: vk::CommandBuffer,
     device: Arc<Device>,
-    share: SharePointer,
+}
+
+impl Buffer {
+     #[doc(hidden)]
+    pub fn new(buffer: vk::CommandBuffer, device: Arc<Device>) -> Buffer {
+        unimplemented!()
+    }
 }
 
 impl command::CommandBuffer<Resources> for Buffer {

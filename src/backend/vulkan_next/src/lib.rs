@@ -195,6 +195,52 @@ impl Queue {
     pub fn family_index(&self) -> u32 {
         self.family_index
     }
+
+    pub fn create_command_pool(&self) -> CommandPool {
+        let com_info = vk::CommandPoolCreateInfo {
+            sType: vk::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            pNext: ptr::null(),
+            flags: 0,
+            queueFamilyIndex: self.family_index,
+        };
+        let mut com_pool = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            let (dev, vk) = self.device.get();
+            vk.CreateCommandPool(dev, &com_info, ptr::null(), &mut com_pool)
+        });
+
+        CommandPool {
+            inner: com_pool,
+            device: self.device.clone(),
+        }
+    }
+}
+
+pub struct CommandPool {
+    inner: vk::CommandPool,
+    device: Arc<Device>,
+}
+
+impl CommandPool {
+    pub fn create_command_buffers(&self, num: usize) -> Vec<command::Buffer> {
+        let alloc_info = vk::CommandBufferAllocateInfo {
+            sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            pNext: ptr::null(),
+            commandPool: self.inner,
+            level: vk::COMMAND_BUFFER_LEVEL_PRIMARY,
+            commandBufferCount: num as u32,
+        };
+
+        let (dev, vk) = self.device.get();
+        let mut buf = Vec::with_capacity(num);
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.AllocateCommandBuffers(dev, &alloc_info, buf.as_mut_ptr())
+        });
+
+        buf.iter().map(|&buffer| {
+            command::Buffer::new(buffer, self.device.clone())
+        }).collect::<Vec<_>>()
+    }
 }
 
 // TODO: move this to the window creation
