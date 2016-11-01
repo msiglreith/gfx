@@ -12,12 +12,14 @@ fn main() {
         .with_dimensions(1440, 900)
         .with_title("core_next".to_string()).build().unwrap();
 
-    let instance = vulkan::Instance::new("next", 1, &[], &["VK_KHR_surface"]);
+    let (instance, share) = vulkan::Instance::new("next", 1, &[], &["VK_KHR_surface"]);
     let physical_device = &instance.physical_devices()[0];
     let (device, queues) = physical_device.open_device(&instance, &["VK_KHR_swapchain"], |_| { true });
 
+    let mut factory = vulkan::Factory::new(device.clone(), share.clone());
+
     let surface = vulkan::Surface::new(&instance, &window);
-    let swap_chain = vulkan::SwapChain::new::<ColorFormat>(&device, &instance, surface, 1440, 900);
+    let swap_chain = vulkan::SwapChain::new::<ColorFormat>(&mut factory, &instance, &queues[0], surface, 1440, 900);
 
     'main: loop {
         for event in window.poll_events() {
@@ -27,5 +29,7 @@ fn main() {
                 _ => {},
             }
         }
+
+        swap_chain.present();
     }
 }

@@ -56,8 +56,63 @@ pub struct Factory {
 }
 
 impl Factory {
+    /// Create a new `Factory`.
+    pub fn new(device: Arc<Device>, share: Arc<Share>) -> Factory {
+        Factory {
+            device: device,
+            share: share,
+        }
+    }
+
     fn alloc(&self, usage: memory::Usage, reqs: vk::MemoryRequirements) -> vk::DeviceMemory {
         unimplemented!()
+    }
+
+    pub fn view_image(&mut self, htex: &handle::RawTexture<R>, desc: texture::ResourceDesc, is_target: bool)
+                    -> Result<native::ImageView, factory::ResourceViewError> {
+        let raw_image = self.share.handles.borrow_mut().ref_texture(htex);
+        let td = htex.get_info();
+        let info = vk::ImageViewCreateInfo {
+            sType: vk::STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            pNext: ptr::null(),
+            flags: 0,
+            image: raw_image.image,
+            viewType: match data::map_image_view_type(td.kind, desc.layer) {
+                Ok(vt) => vt,
+                Err(e) => return Err(factory::ResourceViewError::Layer(e)),
+            },
+            format: match data::map_format(td.format, desc.channel) {
+                Some(f) => f,
+                None => return Err(factory::ResourceViewError::Channel(desc.channel)),
+            },
+            components: data::map_swizzle(desc.swizzle),
+            subresourceRange: vk::ImageSubresourceRange {
+                aspectMask: data::map_image_aspect(td.format, desc.channel, is_target),
+                baseMipLevel: desc.min as u32,
+                levelCount: (desc.max + 1 - desc.min) as u32,
+                baseArrayLayer: desc.layer.unwrap_or(0) as u32,
+                layerCount: match desc.layer {
+                    Some(_) => 1,
+                    None => td.kind.get_num_slices().unwrap_or(1) as u32,
+                },
+            },
+        };
+
+        let (dev, vk) = self.device.get();
+        let mut view = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.CreateImageView(dev, &info, ptr::null(), &mut view)
+        });
+        Ok(native::ImageView {
+            image: raw_image.image,
+            view: view,
+            layout: raw_image.layout.get(), //care!
+            sub_range: info.subresourceRange,
+        })
+    }
+
+    pub fn get_device(&self) -> &Arc<Device> {
+        &self.device
     }
 }
 
@@ -66,7 +121,7 @@ impl factory::Factory<R> for Factory {
 
     }
 
-    fn create_shader(&mut self, stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError> {
+    fn create_shader(&mut self, _stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError> {
         use core::handle::Producer;
         use mirror::reflect_spirv_module;
         use native::Shader;

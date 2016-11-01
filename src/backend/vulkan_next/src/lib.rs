@@ -27,6 +27,8 @@ mod factory;
 mod mirror;
 mod native;
 
+pub use factory::Factory;
+
 use core::format;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -173,6 +175,7 @@ impl PhysicalDeviceInfo {
         Arc::new(Queue {
             device: device,
             inner: queue,
+            family_index: family,
 
         })
     }
@@ -181,11 +184,16 @@ impl PhysicalDeviceInfo {
 pub struct Queue {
     device: Arc<Device>,
     inner: vk::Queue,
+    family_index: u32,
 }
 
 impl Queue {
     pub fn get(&self) -> vk::Queue {
         self.inner
+    }
+
+    pub fn family_index(&self) -> u32 {
+        self.family_index
     }
 }
 
@@ -237,18 +245,19 @@ impl Surface {
 pub struct SwapChain {
     inner: vk::SwapchainKHR,
     surface: vk::SurfaceKHR,
+    present_queue: Arc<Queue>,
 }
 
 impl SwapChain {
-    pub fn new<T: core::format::RenderFormat>(device: &Arc<Device>, instance: &Arc<Instance>, surface: Surface, width: u32, height: u32) -> SwapChain {
-        let (dev, vk) = device.get();
+    pub fn new<T: core::format::RenderFormat>(factory: &mut factory::Factory, instance: &Arc<Instance>, present_queue: &Arc<Queue>, surface: Surface, width: u32, height: u32) -> SwapChain {
+        let (dev, vk) = factory.get_device().get();
         let mut images: [vk::Image; 2] = [0; 2];
         let mut num = images.len() as u32;
         let format = <T as format::Formatted>::get_format();
 
         let surface_capabilities = {
             let (_, vk) = instance.get();
-            let dev = device.get_physical_device();
+            let dev = factory.get_device().get_physical_device();
             let mut capabilities: vk::SurfaceCapabilitiesKHR = unsafe { std::mem::uninitialized() };
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(dev, surface.inner, &mut capabilities)
@@ -256,22 +265,20 @@ impl SwapChain {
             capabilities
         };
 
-        /*
         // Determine whether a queue family of a physical device supports presentation to a given surface 
         let supports_presentation = {
-            let (_, vk) = device.get_instance();
-            let dev = device.get_physical_device();
+            let (_, vk) = instance.get();
+            let dev = factory.get_device().get_physical_device();
             let mut supported = 0;
             assert_eq!(vk::SUCCESS, unsafe {
-                vk.GetPhysicalDeviceSurfaceSupportKHR(dev, dev.get_family(), surface.inner, &mut supported)
+                vk.GetPhysicalDeviceSurfaceSupportKHR(dev, present_queue.family_index(), surface.inner, &mut supported)
             });
             supported != 0
         };
-        */
 
         let surface_formats = {
             let (_, vk) = instance.get();
-            let dev = device.get_physical_device();
+            let dev = factory.get_device().get_physical_device();
             let mut num = 0;
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface.inner, &mut num, ptr::null_mut())
@@ -286,7 +293,7 @@ impl SwapChain {
 
         let present_modes = {
             let (_, vk) = instance.get();
-            let dev = device.get_physical_device();
+            let dev = factory.get_device().get_physical_device();
             let mut num = 0;
             assert_eq!(vk::SUCCESS, unsafe {
                 vk.GetPhysicalDeviceSurfacePresentModesKHR(dev, surface.inner, &mut num, ptr::null_mut())
@@ -298,6 +305,15 @@ impl SwapChain {
             unsafe { modes.set_len(num as usize); }
             modes
         };
+
+        let mut presentation_mode = vk::PRESENT_MODE_FIFO_KHR; // required to be supported
+        for mode in present_modes  {
+            // lowest-latency non-tearing mode according to vulkan specs
+            if mode == vk::PRESENT_MODE_MAILBOX_KHR {
+                presentation_mode = vk::PRESENT_MODE_MAILBOX_KHR;
+                break;
+            }
+        }
 
         // TODO: Use the queried information to check if our values are supported before creating the swapchain
         let swapchain_info = vk::SwapchainCreateInfoKHR {
@@ -316,7 +332,7 @@ impl SwapChain {
             pQueueFamilyIndices: &0,
             preTransform: vk::SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
             compositeAlpha: vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            presentMode: vk::PRESENT_MODE_FIFO_KHR, // required to be supported
+            presentMode: presentation_mode,
             clipped: vk::TRUE,
             oldSwapchain: 0,
         };
@@ -326,13 +342,18 @@ impl SwapChain {
             vk.CreateSwapchainKHR(dev, &swapchain_info, ptr::null(), &mut swapchain)
         });
 
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.GetSwapchainImagesKHR(dev, swapchain, &mut num, images.as_mut_ptr())
+        });
+
         SwapChain {
             inner: swapchain,
             surface: surface.inner,
+            present_queue: present_queue.clone(),
         }
     }
 
-    pub fn present(&self, present_queue: Arc<Queue>) {
+    pub fn present(&self) {
         let mut result = vk::SUCCESS;
         let info = vk::PresentInfoKHR {
             sType: vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -344,9 +365,9 @@ impl SwapChain {
             pImageIndices: &0, // &self.target_id,
             pResults: &mut result,
         };
-        let (_, vk) = present_queue.device.get();
+        let (_, vk) = self.present_queue.device.get();
         unsafe {
-            vk.QueuePresentKHR(present_queue.get(), &info);
+            vk.QueuePresentKHR(self.present_queue.get(), &info);
         }
         assert_eq!(vk::SUCCESS, result);
     }
@@ -371,7 +392,7 @@ pub struct Instance {
 pub type InstancePointer = Arc<Instance>;
 
 impl Instance {
-    pub fn new(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&str]) -> InstancePointer {
+    pub fn new(app_name: &str, app_version: u32, layers: &[&str], extensions: &[&str]) -> (InstancePointer, Arc<Share>) {
         let entry_points = vk::EntryPoints::load(|name| unsafe {
             mem::transmute(vk_library.GetInstanceProcAddr(0, name.as_ptr()))
         });
@@ -453,11 +474,17 @@ impl Instance {
             .map(|dev| PhysicalDeviceInfo::new(*dev, &inst_pointers))
             .collect::<Vec<_>>();
 
-        Arc::new(Instance {
-            inner: instance,
-            pointers: inst_pointers,
-            physical_devices: devices,
-        })
+        let instance = Arc::new(Instance {
+                inner: instance,
+                pointers: inst_pointers,
+                physical_devices: devices,
+            });
+
+        let share = Arc::new(Share {
+                handles: RefCell::new(core::handle::Manager::new()),
+            });
+
+        (instance, share)
     }
 
     pub fn get(&self) -> (vk::Instance, &vk::InstancePointers) {

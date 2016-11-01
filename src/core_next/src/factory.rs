@@ -16,6 +16,19 @@ use {Resources, VertexCount, InstanceParams};
 use {buffer, format, handle, shade, texture};
 use {VertexShader, GeometryShader, PixelShader};
 
+/// Error creating either a ShaderResourceView, or UnorderedAccessView.
+#[derive(Clone, PartialEq, Debug)]
+pub enum ResourceViewError {
+    /// The corresponding bind flag is not present in the texture.
+    NoBindFlag,
+    /// Selected channel type is not supported for this texture.
+    Channel(format::ChannelType),
+    /// Selected layer can not be viewed for this texture.
+    Layer(texture::LayerError),
+    /// The backend was refused for some reason.
+    Unsupported,
+}
+
 pub trait Factory<R: Resources> {
     fn create_fence(&mut self) -> ();
     //fn create_semaphore(&mut self) -> ();
