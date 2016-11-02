@@ -216,9 +216,37 @@ impl Queue {
     }
 }
 
+impl core::Queue for Queue {
+    type Resources = Resources;
+    type CommandBuffer = Buffer;
+
+    fn submit(&mut self, command_buffer: &mut Buffer, access: &pso::AccessInfo<Self::Resources>) {
+        self.ensure_mappings_flushed(access.mapped_reads());
+
+        let submit_info = vk::SubmitInfo {
+            sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
+            commandBufferCount: 1,
+            pCommandBuffers: &command_buffer.inner,
+            .. unsafe { mem::zeroed() }
+        };
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.QueueSubmit(self.inner, 1, &submit_info, 0)
+        });
+    }
+}
+
 pub struct CommandPool {
     inner: vk::CommandPool,
     device: Arc<Device>,
+}
+
+impl Drop for CommandPool {
+    fn drop(&mut self) {
+        let (dev, vk) = self.device.get();
+        unsafe {
+            vk.DestroyCommandPool(dev, self.inner, ptr::null())
+        };
+    }
 }
 
 impl CommandPool {

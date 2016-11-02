@@ -117,8 +117,18 @@ impl Factory {
 }
 
 impl factory::Factory<R> for Factory {
-    fn create_fence(&mut self) -> () {
-
+    fn create_fence(&mut self, signalled: bool) -> handle::Fence<R> {
+        let info = vk::FenceCreateInfo {
+            sType: vk::STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            pNext: ptr::null(),
+            flags: if signalled { vk::FENCE_CREATE_SIGNALED_BIT } else { 0 },
+        };
+        let (dev, vk) = self.device.get();
+        let mut fence = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.CreateFence(dev, &info, ptr::null(), &mut fence)
+        });
+        Ok(self.share.handles.borrow_mut().make_fence(fence))
     }
 
     fn create_shader(&mut self, _stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError> {
@@ -159,7 +169,36 @@ impl factory::Factory<R> for Factory {
     }
 
     fn create_buffer_raw(&mut self, info: buffer::Info) -> Result<handle::RawBuffer<R>, buffer::CreationError> {
-        unimplemented!()
+        let (usage, _) = data::map_usage_tiling(info.usage, info.bind);
+        let native_info = vk::BufferCreateInfo {
+            sType: vk::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            pNext: ptr::null(),
+            flags: 0,
+            size: info.size as vk::DeviceSize,
+            usage: usage,
+            sharingMode: vk::SHARING_MODE_EXCLUSIVE,
+            queueFamilyIndexCount: 1,
+            pQueueFamilyIndices: &self.queue_family_index,
+        };
+        let (dev, vk) = self.share.get_device();
+        let mut buf = 0;
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.CreateBuffer(dev, &native_info, ptr::null(), &mut buf)
+        });
+        let reqs = unsafe {
+            let mut out = mem::zeroed();
+            vk.GetBufferMemoryRequirements(dev, buf, &mut out);
+            out
+        };
+        let mem = self.alloc(info.usage, reqs);
+        assert_eq!(vk::SUCCESS, unsafe {
+            vk.BindBufferMemory(dev, buf, mem, 0)
+        });
+        let buffer = native::Buffer {
+            buffer: buf,
+            memory: mem,
+        };
+        Ok(self.share.handles.borrow_mut().make_buffer(buffer, info))
     }
 
     fn create_buffer_view(&mut self) -> () {

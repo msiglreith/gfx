@@ -43,7 +43,14 @@ pub mod shade;
 pub mod texture;
 
 pub trait Queue {
+    /// Associated `Resources` type.
+    type Resources: Resources;
+    /// Associated `CommandBuffer` type. Every `Queue` type can only work with one `CommandBuffer`
+    /// type.
+    type CommandBuffer: command::Buffer<Self::Resources>;
 
+    /// Submits a `CommandBuffer` to the GPU for execution.
+    fn submit(&mut self, &mut Self::CommandBuffer, access: &pso::AccessInfo<Self::Resources>);
 }
 
 pub trait CommandPool {

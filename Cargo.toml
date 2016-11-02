@@ -60,6 +60,7 @@ gfx_window_sdl = { path = "src/window/sdl", version = "0.4" }
 
 [target.'cfg(windows)'.dependencies]
 gfx_device_dx11 = { path = "src/backend/dx11", version = "0.4" }
+gfx_device_dx12_next = { path = "src/backend/dx12", version = "0.1" }
 gfx_window_dxgi = { path = "src/window/dxgi", version = "0.4" }
 
 [[example]]

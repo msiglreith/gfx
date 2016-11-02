@@ -30,11 +30,14 @@ pub enum ResourceViewError {
 }
 
 pub trait Factory<R: Resources> {
-    fn create_fence(&mut self) -> ();
+    fn create_fence(&mut self, signalled: bool) -> handle::Fence<R>;
     //fn create_semaphore(&mut self) -> ();
     //fn create_event(&mut self) -> ();
     fn create_shader(&mut self, stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError>;
 
+    /// Creates a new shader `Program` for the supplied `ShaderSet`.
+    fn create_program(&mut self, shader_set: &ShaderSet<R>)
+                      -> Result<handle::Program<R>, shade::CreateProgramError>;
     fn create_compute_pipelines(&mut self) -> ();
     fn create_graphics_pipelines(&mut self) -> ();
     fn create_pipeline_cache(&mut self) -> ();
