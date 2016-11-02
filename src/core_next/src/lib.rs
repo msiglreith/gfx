@@ -47,7 +47,7 @@ pub trait Queue {
     type Resources: Resources;
     /// Associated `CommandBuffer` type. Every `Queue` type can only work with one `CommandBuffer`
     /// type.
-    type CommandBuffer: command::Buffer<Self::Resources>;
+    type CommandBuffer: command::CommandBuffer<Self::Resources>;
 
     /// Submits a `CommandBuffer` to the GPU for execution.
     fn submit(&mut self, &mut Self::CommandBuffer, access: &pso::AccessInfo<Self::Resources>);
