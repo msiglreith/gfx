@@ -26,16 +26,6 @@ pub struct Shader {
 unsafe impl Send for Shader {}
 unsafe impl Sync for Shader {}
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Program {
-    pub vertex: vk::ShaderModule,
-    pub geometry: Option<vk::ShaderModule>,
-    pub pixel: vk::ShaderModule,
-}
-unsafe impl Send for Program {}
-unsafe impl Sync for Program {}
-
-
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Buffer {
     pub buffer: vk::Buffer,
@@ -76,5 +66,14 @@ pub struct Pipeline {
     pub pipe_layout: vk::PipelineLayout,
     pub desc_layout: vk::DescriptorSetLayout,
     pub desc_pool: vk::DescriptorPool,
-    pub program: core::handle::Program<R>,
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct PipelineLayout {
+
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct RenderPass {
+    
 }

@@ -1,8 +1,11 @@
 #[macro_use]
 extern crate gfx;
+extern crate gfx_core_next;
 extern crate gfx_device_vulkan_next as vulkan;
 extern crate env_logger;
 extern crate winit;
+
+use gfx_core_next::factory::Factory;
 
 pub type ColorFormat = gfx::format::Bgra8;
 
@@ -23,6 +26,9 @@ fn main() {
 
     let main_pool = queues[0].create_command_pool();
     let cmd_buffers = main_pool.create_command_buffers(16);
+
+    let vertex_shader = factory.create_shader(include_bytes!("vert.spv"));
+    let pixel_shader = factory.create_shader(include_bytes!("frag.spv"));
 
     'main: loop {
         for event in window.poll_events() {

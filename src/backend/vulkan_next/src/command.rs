@@ -3,7 +3,7 @@ use vk;
 use core::{command, pso, state, target};
 use core::{ClearColor, VertexCount, IndexType, InstanceParams};
 use core::MAX_VERTEX_ATTRIBUTES;
-use core::command::BufferCopy;
+use core::command::{BufferCopy, BufferBarrier, ImageBarrier};
 use {Resources, Device, SharePointer};
 use native;
 use std::sync::Arc;
@@ -14,9 +14,14 @@ pub struct Buffer {
 }
 
 impl Buffer {
-     #[doc(hidden)]
+    #[doc(hidden)]
     pub fn new(buffer: vk::CommandBuffer, device: Arc<Device>) -> Buffer {
         unimplemented!()
+    }
+
+    #[doc(hidden)]
+    pub fn get(&self) -> vk::CommandBuffer {
+        self.inner
     }
 }
 
@@ -243,7 +248,7 @@ impl command::CommandBuffer<Resources> for Buffer {
         unimplemented!()
     }
 
-    fn pipeline_barrier(&mut self) -> () {
+    fn pipeline_barrier(&mut self, buffer_barriers: &[BufferBarrier], image_barriers: &[ImageBarrier]) -> () {
         unimplemented!()
     }
     

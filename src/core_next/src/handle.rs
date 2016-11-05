@@ -60,18 +60,9 @@ impl<R: Resources, T> Buffer<R, T> {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Shader<R: Resources>(Arc<R::Shader>);
 
-/// Program Handle
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Program<R: Resources>(Arc<shade::Program<R>>);
-
-impl<R: Resources> ops::Deref for Program<R> {
-    type Target = shade::Program<R>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
 /// Raw Pipeline State Handle
 #[derive(Clone, Debug, PartialEq)]
-pub struct RawPipelineState<R: Resources>(Arc<R::PipelineStateObject>, Program<R>);
+pub struct RawPipelineState<R: Resources>(Arc<R::PipelineStateObject>);
 
 /// Raw texture handle
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -218,6 +209,14 @@ impl<R: Resources> Fence<R> {
     }
 }
 
+/// Pipeline layout handle
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PipelineLayout<R: Resources>(Arc<R::PipelineLayout>);
+
+/// RenderPass handle
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RenderPass<R: Resources>(Arc<R::RenderPass>);
+
 /// Raw Mapping handle
 #[derive(Debug)]
 pub struct RawMapping<R: Resources>(Arc<mapping::Raw<R>>);
@@ -247,7 +246,6 @@ impl<R: Resources> ops::Deref for RawMapping<R> {
 pub struct Manager<R: Resources> {
     buffers:       Vec<Arc<buffer::Raw<R>>>,
     shaders:       Vec<Arc<R::Shader>>,
-    programs:      Vec<Arc<shade::Program<R>>>,
     psos:          Vec<Arc<R::PipelineStateObject>>,
     textures:      Vec<Arc<texture::Raw<R>>>,
     srvs:          Vec<Arc<R::ShaderResourceView>>,
@@ -264,8 +262,6 @@ pub struct Manager<R: Resources> {
 pub trait Producer<R: Resources> {
     fn make_buffer(&mut self, R::Buffer, buffer::Info) -> RawBuffer<R>;
     fn make_shader(&mut self, R::Shader) -> Shader<R>;
-    fn make_program(&mut self, R::Program, shade::ProgramInfo) -> Program<R>;
-    fn make_pso(&mut self, R::PipelineStateObject, &Program<R>) -> RawPipelineState<R>;
     fn make_image(&mut self, R::Image, texture::Info) -> RawTexture<R>;
     fn make_buffer_srv(&mut self, R::ShaderResourceView, &RawBuffer<R>) -> RawShaderResourceView<R>;
     fn make_texture_srv(&mut self, R::ShaderResourceView, &RawTexture<R>) -> RawShaderResourceView<R>;
@@ -285,7 +281,6 @@ pub trait Producer<R: Resources> {
     fn clean_with<T,
         A: Fn(&mut T, &buffer::Raw<R>),
         B: Fn(&mut T, &R::Shader),
-        C: Fn(&mut T, &shade::Program<R>),
         D: Fn(&mut T, &R::PipelineStateObject),
         E: Fn(&mut T, &texture::Raw<R>),
         F: Fn(&mut T, &R::ShaderResourceView),
@@ -295,7 +290,7 @@ pub trait Producer<R: Resources> {
         J: Fn(&mut T, &R::Sampler),
         K: Fn(&mut T, &R::Fence),
         L: Fn(&mut T, &mapping::Raw<R>),
-    >(&mut self, &mut T, A, B, C, D, E, F, G, H, I, J, K, L);
+    >(&mut self, &mut T, A, B, D, E, F, G, H, I, J, K, L);
 }
 
 impl<R: Resources> Producer<R> for Manager<R> {
@@ -309,18 +304,6 @@ impl<R: Resources> Producer<R> for Manager<R> {
         let r = Arc::new(res);
         self.shaders.push(r.clone());
         Shader(r)
-    }
-
-    fn make_program(&mut self, res: R::Program, info: shade::ProgramInfo) -> Program<R> {
-        let r = Arc::new(shade::Program::new(res, info));
-        self.programs.push(r.clone());
-        Program(r)
-    }
-
-    fn make_pso(&mut self, res: R::PipelineStateObject, program: &Program<R>) -> RawPipelineState<R> {
-        let r = Arc::new(res);
-        self.psos.push(r.clone());
-        RawPipelineState(r, program.clone())
     }
 
     fn make_image(&mut self, res: R::Image, info: texture::Info) -> RawTexture<R> {
@@ -392,7 +375,6 @@ impl<R: Resources> Producer<R> for Manager<R> {
     fn clean_with<T,
         A: Fn(&mut T, &buffer::Raw<R>),
         B: Fn(&mut T, &R::Shader),
-        C: Fn(&mut T, &shade::Program<R>),
         D: Fn(&mut T, &R::PipelineStateObject),
         E: Fn(&mut T, &texture::Raw<R>),
         F: Fn(&mut T, &R::ShaderResourceView),
@@ -402,7 +384,7 @@ impl<R: Resources> Producer<R> for Manager<R> {
         J: Fn(&mut T, &R::Sampler),
         K: Fn(&mut T, &R::Fence),
         L: Fn(&mut T, &mapping::Raw<R>),
-    >(&mut self, param: &mut T, fa: A, fb: B, fc: C, fd: D, fe: E, ff: F, fg: G, fh: H, fi: I, fj: J, fk: K, fl: L) {
+    >(&mut self, param: &mut T, fa: A, fb: B, fd: D, fe: E, ff: F, fg: G, fh: H, fi: I, fj: J, fk: K, fl: L) {
         fn clean_vec<X, Param, Fun>(param: &mut Param, vector: &mut Vec<Arc<X>>, fun: Fun)
             where Fun: Fn(&mut Param, &X)
         {
@@ -422,7 +404,6 @@ impl<R: Resources> Producer<R> for Manager<R> {
         }
         clean_vec(param, &mut self.buffers,       fa);
         clean_vec(param, &mut self.shaders,       fb);
-        clean_vec(param, &mut self.programs,      fc);
         clean_vec(param, &mut self.psos,          fd);
         clean_vec(param, &mut self.textures,      fe);
         clean_vec(param, &mut self.srvs,          ff);
@@ -441,7 +422,6 @@ impl<R: Resources> Manager<R> {
         Manager {
             buffers: Vec::new(),
             shaders: Vec::new(),
-            programs: Vec::new(),
             psos: Vec::new(),
             textures: Vec::new(),
             srvs: Vec::new(),
@@ -457,7 +437,6 @@ impl<R: Resources> Manager<R> {
     pub fn clear(&mut self) {
         self.buffers.clear();
         self.shaders.clear();
-        self.programs.clear();
         self.psos.clear();
         self.textures.clear();
         self.srvs.clear();
@@ -472,7 +451,6 @@ impl<R: Resources> Manager<R> {
     pub fn extend(&mut self, other: &Manager<R>) {
         self.buffers  .extend(other.buffers  .iter().map(|h| h.clone()));
         self.shaders  .extend(other.shaders  .iter().map(|h| h.clone()));
-        self.programs .extend(other.programs .iter().map(|h| h.clone()));
         self.psos     .extend(other.psos     .iter().map(|h| h.clone()));
         self.textures .extend(other.textures .iter().map(|h| h.clone()));
         self.srvs     .extend(other.srvs     .iter().map(|h| h.clone()));
@@ -487,7 +465,6 @@ impl<R: Resources> Manager<R> {
     pub fn count(&self) -> usize {
         self.buffers.len() +
         self.shaders.len() +
-        self.programs.len() +
         self.psos.len() +
         self.textures.len() +
         self.srvs.len() +
@@ -508,16 +485,11 @@ impl<R: Resources> Manager<R> {
         self.shaders.push(handle.0.clone());
         &handle.0
     }
-    /// Reference a program
-    pub fn ref_program<'a>(&mut self, handle: &'a Program<R>) -> &'a R::Program {
-        self.programs.push(handle.0.clone());
-        handle.resource()
-    }
+
     /// Reference a pipeline state object
-    pub fn ref_pso<'a>(&mut self, handle: &'a RawPipelineState<R>) -> (&'a R::PipelineStateObject, &'a R::Program) {
+    pub fn ref_pso<'a>(&mut self, handle: &'a RawPipelineState<R>) -> &'a R::PipelineStateObject {
         self.psos.push(handle.0.clone());
-        self.programs.push((handle.1).0.clone());
-        (&handle.0, handle.1.resource())
+        &handle.0
     }
     /// Reference a texture
     pub fn ref_texture<'a>(&mut self, handle: &'a RawTexture<R>) -> &'a R::Image {

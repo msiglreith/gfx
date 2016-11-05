@@ -394,43 +394,6 @@ pub struct ProgramInfo {
     pub knows_outputs: bool,
 }
 
-/// A program
-#[derive(Debug)]
-pub struct Program<R: Resources> {
-    resource: R::Program,
-    info: ProgramInfo,
-}
-
-impl<R: Resources> Program<R> {
-    #[doc(hidden)]
-    pub fn new(resource: R::Program, info: ProgramInfo) -> Self {
-        Program {
-            resource: resource,
-            info: info,
-        }
-    }
-
-    #[doc(hidden)]
-    pub fn resource(&self) -> &R::Program { &self.resource }
-
-    /// Get program info
-    pub fn get_info(&self) -> &ProgramInfo { &self.info }
-}
-
-impl<R: Resources + cmp::PartialEq> cmp::PartialEq for Program<R> {
-    fn eq(&self, other: &Program<R>) -> bool {
-        self.resource().eq(other.resource())
-    }
-}
-
-impl<R: Resources + cmp::Eq> cmp::Eq for Program<R> {}
-
-impl<R: Resources + hash::Hash> hash::Hash for Program<R> {
-    fn hash<H>(&self, state: &mut H) where H: hash::Hasher {
-        self.resource().hash(state);
-    }
-}
-
 /// Error type for trying to store a UniformValue in a ConstVar.
 #[derive(Clone, Copy, Debug)]
 pub enum CompatibilityError {

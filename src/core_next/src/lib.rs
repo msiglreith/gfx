@@ -76,12 +76,25 @@ pub trait Fence {
     fn wait(&self);
 }
 
-macro_rules! define_shaders {
-    ($($name:ident),+) => {$(
+macro_rules! define_shader_entries {
+    ($($entry:ident $shader:ident),+) => {$(
         #[allow(missing_docs)]
         #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-        pub struct $name<R: Resources>(handle::Shader<R>);
-        impl<R: Resources> $name<R> {
+        pub struct $entry<R: Resources>($shader<R>, String);
+        impl<R: Resources> $entry<R> {
+            pub fn get_shader(&self, man: &mut handle::Manager<R>) -> &R::Shader {
+                self.0.reference(man)
+            }
+
+            pub fn get_entry_point(&self) -> &str {
+                &self.1
+            }
+        }
+
+        #[allow(missing_docs)]
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        pub struct $shader<R: Resources>(handle::Shader<R>);
+        impl<R: Resources> $shader<R> {
             #[allow(missing_docs)]
             pub fn reference(&self, man: &mut handle::Manager<R>) -> &R::Shader {
                 man.ref_shader(&self.0)
@@ -90,24 +103,51 @@ macro_rules! define_shaders {
     )+}
 }
 
-define_shaders!(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader);
+define_shader_entries!(
+    VertexEntry VertexShader,
+    HullEntry HullShader,
+    DomainEntry DomainShader,
+    GeometryEntry GeometryShader,
+    PixelEntry PixelShader
+);
 
 /// A complete set of shaders to link a program.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ShaderSet<R: Resources> {
     /// Simple program: Vs-Ps
-    Simple(VertexShader<R>, PixelShader<R>),
+    Simple(VertexEntry<R>, PixelEntry<R>),
     /// Geometry shader programs: Vs-Gs-Ps
-    Geometry(VertexShader<R>, GeometryShader<R>, PixelShader<R>),
+    Geometry(VertexEntry<R>, GeometryEntry<R>, PixelEntry<R>),
     //TODO: Tessellated, TessellatedGeometry, TransformFeedback
 }
 
 impl<R: Resources> ShaderSet<R> {
     /// Return the aggregated stage usage for the set.
     pub fn get_usage(&self) -> shade::Usage {
-        match self {
-            &ShaderSet::Simple(..) => shade::VERTEX | shade::PIXEL,
-            &ShaderSet::Geometry(..) => shade::VERTEX | shade::GEOMETRY | shade::PIXEL,
+        match *self {
+            ShaderSet::Simple(..) => shade::VERTEX | shade::PIXEL,
+            ShaderSet::Geometry(..) => shade::VERTEX | shade::GEOMETRY | shade::PIXEL,
+        }
+    }
+
+    pub fn get_vertex_entry(&self) -> Option<&VertexEntry<R>> {
+        match *self {
+            ShaderSet::Simple(ref vertex, _) |
+            ShaderSet::Geometry(ref vertex, _, _) => Some(vertex),
+        }
+    }
+
+    pub fn get_geometry_entry(&self) -> Option<&GeometryEntry<R>> {
+        match *self {
+            ShaderSet::Geometry(_, ref geometry, _) => Some(geometry),
+            _ => None,
+        }
+    }
+
+    pub fn get_pixel_entry(&self) -> Option<&PixelEntry<R>> {
+        match *self {
+            ShaderSet::Simple(_, ref pixel) |
+            ShaderSet::Geometry(_, _, ref pixel) => Some(pixel),
         }
     }
 }
@@ -116,7 +156,8 @@ impl<R: Resources> ShaderSet<R> {
 pub trait Resources:          Clone + Hash + Debug + Eq + PartialEq + Any {
     type Buffer:              Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync + Copy;
     type Shader:              Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
-    type Program:             Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
+    type RenderPass:          Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
+    type PipelineLayout:      Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
     type PipelineStateObject: Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
     type Image:               Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
     type ShaderResourceView:  Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync + Copy;

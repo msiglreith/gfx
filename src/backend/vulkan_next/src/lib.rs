@@ -218,15 +218,17 @@ impl Queue {
 
 impl core::Queue for Queue {
     type Resources = Resources;
-    type CommandBuffer = Buffer;
+    type CommandBuffer = command::Buffer;
 
-    fn submit(&mut self, command_buffer: &mut Buffer, access: &pso::AccessInfo<Self::Resources>) {
-        self.ensure_mappings_flushed(access.mapped_reads());
+    fn submit(&mut self, command_buffer: &mut Self::CommandBuffer, access: &core::pso::AccessInfo<Self::Resources>) {
+        // self.ensure_mappings_flushed(access.mapped_reads());
+
+        let (_, vk) = self.device.get();
 
         let submit_info = vk::SubmitInfo {
             sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
             commandBufferCount: 1,
-            pCommandBuffers: &command_buffer.inner,
+            pCommandBuffers: &command_buffer.get(),
             .. unsafe { mem::zeroed() }
         };
         assert_eq!(vk::SUCCESS, unsafe {
@@ -598,7 +600,8 @@ pub enum Resources {}
 impl core::Resources for Resources {
     type Buffer               = native::Buffer;
     type Shader               = native::Shader;
-    type Program              = native::Program;
+    type RenderPass           = native::RenderPass;
+    type PipelineLayout       = native::PipelineLayout;
     type PipelineStateObject  = native::Pipeline;
     type Image                = native::Image;
     type ShaderResourceView   = native::ImageView; //TODO: buffer view

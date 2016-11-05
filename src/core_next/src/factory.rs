@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use {Resources, VertexCount, InstanceParams, ShaderSet};
-use {buffer, format, handle, shade, texture};
+use {buffer, format, handle, pso, shade, texture};
 use {VertexShader, GeometryShader, PixelShader};
 
 /// Error creating either a ShaderResourceView, or UnorderedAccessView.
@@ -30,16 +30,15 @@ pub enum ResourceViewError {
 }
 
 pub trait Factory<R: Resources> {
+    fn allocate_memory(&mut self) -> ();
     fn create_fence(&mut self, signalled: bool) -> handle::Fence<R>;
     //fn create_semaphore(&mut self) -> ();
     //fn create_event(&mut self) -> ();
-    fn create_shader(&mut self, stage: shade::Stage, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError>;
-
-    /// Creates a new shader `Program` for the supplied `ShaderSet`.
-    fn create_program(&mut self, shader_set: &ShaderSet<R>)
-                      -> Result<handle::Program<R>, shade::CreateProgramError>;
-    fn create_compute_pipelines(&mut self) -> ();
-    fn create_graphics_pipelines(&mut self) -> ();
+    fn create_shader(&mut self, code: &[u8]) -> Result<handle::Shader<R>, shade::CreateShaderError>;
+    fn create_renderpass(&mut self) -> handle::RenderPass<R>;
+    fn create_pipeline_layout(&mut self) -> handle::PipelineLayout<R>;
+    fn create_compute_pipelines(&mut self) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>>;
+    fn create_graphics_pipelines(&mut self, &[(&ShaderSet<R>, &pso::PipelineDesc)]) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>>;
     fn create_pipeline_cache(&mut self) -> ();
     fn create_buffer_raw(&mut self, buffer::Info) -> Result<handle::RawBuffer<R>, buffer::CreationError>;
     fn create_buffer_view(&mut self) -> ();
@@ -49,15 +48,15 @@ pub trait Factory<R: Resources> {
 
     /// Compiles a `VertexShader` from source.
     fn create_shader_vertex(&mut self, code: &[u8]) -> Result<VertexShader<R>, shade::CreateShaderError> {
-        self.create_shader(shade::Stage::Vertex, code).map(|s| VertexShader(s))
+        self.create_shader(code).map(|s| VertexShader(s))
     }
     /// Compiles a `GeometryShader` from source.
     fn create_shader_geometry(&mut self, code: &[u8]) -> Result<GeometryShader<R>, shade::CreateShaderError> {
-        self.create_shader(shade::Stage::Geometry, code).map(|s| GeometryShader(s))
+        self.create_shader(code).map(|s| GeometryShader(s))
     }
     /// Compiles a `PixelShader` from source. This is the same as what some APIs call a fragment
     /// shader.
     fn create_shader_pixel(&mut self, code: &[u8]) -> Result<PixelShader<R>, shade::CreateShaderError> {
-        self.create_shader(shade::Stage::Pixel, code).map(|s| PixelShader(s))
+        self.create_shader(code).map(|s| PixelShader(s))
     }
 }

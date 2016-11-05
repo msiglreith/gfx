@@ -163,7 +163,7 @@ pub type DepthStencilDesc = (format::Format, DepthStencilInfo);
 /// All the information surrounding a shader program that is required
 /// for PSO creation, including the formats of vertex buffers and pixel targets;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Descriptor {
+pub struct PipelineDesc {
     /// Type of the primitive
     pub primitive: Primitive,
     /// Rasterizer setup
@@ -188,10 +188,10 @@ pub struct Descriptor {
     pub depth_stencil: Option<DepthStencilDesc>,
 }
 
-impl Descriptor {
+impl PipelineDesc {
     /// Create a new empty PSO descriptor.
-    pub fn new(primitive: Primitive, rast: s::Rasterizer) -> Descriptor {
-        Descriptor {
+    pub fn new(primitive: Primitive, rast: s::Rasterizer) -> PipelineDesc {
+        PipelineDesc {
             primitive: primitive,
             rasterizer: rast,
             scissor: false,
