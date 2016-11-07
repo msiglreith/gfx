@@ -70,10 +70,10 @@ pub struct Pipeline {
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct PipelineLayout {
-
+    pub layout: vk::PipelineLayout,
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct RenderPass {
-    
+    pub render_pass: vk::RenderPass,
 }

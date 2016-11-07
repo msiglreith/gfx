@@ -38,7 +38,7 @@ pub trait Factory<R: Resources> {
     fn create_renderpass(&mut self) -> handle::RenderPass<R>;
     fn create_pipeline_layout(&mut self) -> handle::PipelineLayout<R>;
     fn create_compute_pipelines(&mut self) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>>;
-    fn create_graphics_pipelines(&mut self, &[(&ShaderSet<R>, &pso::PipelineDesc)]) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>>;
+    fn create_graphics_pipelines<'a>(&mut self, &[(&ShaderSet<R>, &handle::PipelineLayout<R>, handle::SubPass<'a, R>, &pso::PipelineDesc)]) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>>;
     fn create_pipeline_cache(&mut self) -> ();
     fn create_buffer_raw(&mut self, buffer::Info) -> Result<handle::RawBuffer<R>, buffer::CreationError>;
     fn create_buffer_view(&mut self) -> ();

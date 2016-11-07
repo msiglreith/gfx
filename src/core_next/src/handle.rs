@@ -215,7 +215,34 @@ pub struct PipelineLayout<R: Resources>(Arc<R::PipelineLayout>);
 
 /// RenderPass handle
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RenderPass<R: Resources>(Arc<R::RenderPass>);
+pub struct RenderPass<R: Resources>(Arc<R::RenderPass>, usize);
+
+impl<R: Resources> RenderPass<R> {
+    /// Get a specific SubPass from a RenderPass
+    pub fn get_subpass<'a>(&'a self, id: usize) -> Option<SubPass<'a, R>> {
+        if id < self.1 {
+            Some(SubPass(self, id))
+        } else {
+            None
+        }
+    }
+}
+
+/// Subpass handle
+#[derive(Debug)]
+pub struct SubPass<'a, R: Resources>(&'a RenderPass<R>, usize);
+
+impl<'a, R: Resources> SubPass<'a, R> {
+    /// Get RenderPass
+    pub fn get_render_pass(&self) -> &'a RenderPass<R> {
+        self.0
+    }
+
+    /// Get index of the SubPass
+    pub fn get_subpass_index(&self) -> usize {
+        self.1
+    }
+}
 
 /// Raw Mapping handle
 #[derive(Debug)]
@@ -244,17 +271,19 @@ impl<R: Resources> ops::Deref for RawMapping<R> {
 /// and the Renderer during CommandBuffer population.
 #[allow(missing_docs)]
 pub struct Manager<R: Resources> {
-    buffers:       Vec<Arc<buffer::Raw<R>>>,
-    shaders:       Vec<Arc<R::Shader>>,
-    psos:          Vec<Arc<R::PipelineStateObject>>,
-    textures:      Vec<Arc<texture::Raw<R>>>,
-    srvs:          Vec<Arc<R::ShaderResourceView>>,
-    uavs:          Vec<Arc<R::UnorderedAccessView>>,
-    rtvs:          Vec<Arc<R::RenderTargetView>>,
-    dsvs:          Vec<Arc<R::DepthStencilView>>,
-    samplers:      Vec<Arc<R::Sampler>>,
-    fences:        Vec<Arc<R::Fence>>,
-    mappings:      Vec<Arc<mapping::Raw<R>>>,
+    buffers:  Vec<Arc<buffer::Raw<R>>>,
+    shaders:  Vec<Arc<R::Shader>>,
+    passes:   Vec<Arc<R::RenderPass>>,
+    layouts:  Vec<Arc<R::PipelineLayout>>,
+    psos:     Vec<Arc<R::PipelineStateObject>>,
+    textures: Vec<Arc<texture::Raw<R>>>,
+    srvs:     Vec<Arc<R::ShaderResourceView>>,
+    uavs:     Vec<Arc<R::UnorderedAccessView>>,
+    rtvs:     Vec<Arc<R::RenderTargetView>>,
+    dsvs:     Vec<Arc<R::DepthStencilView>>,
+    samplers: Vec<Arc<R::Sampler>>,
+    fences:   Vec<Arc<R::Fence>>,
+    mappings: Vec<Arc<mapping::Raw<R>>>,
 }
 
 /// A service trait to be used by the device implementation
@@ -281,6 +310,7 @@ pub trait Producer<R: Resources> {
     fn clean_with<T,
         A: Fn(&mut T, &buffer::Raw<R>),
         B: Fn(&mut T, &R::Shader),
+        C: Fn(&mut T, &R::RenderPass),
         D: Fn(&mut T, &R::PipelineStateObject),
         E: Fn(&mut T, &texture::Raw<R>),
         F: Fn(&mut T, &R::ShaderResourceView),
@@ -290,7 +320,8 @@ pub trait Producer<R: Resources> {
         J: Fn(&mut T, &R::Sampler),
         K: Fn(&mut T, &R::Fence),
         L: Fn(&mut T, &mapping::Raw<R>),
-    >(&mut self, &mut T, A, B, D, E, F, G, H, I, J, K, L);
+        M: Fn(&mut T, &R::PipelineLayout),
+    >(&mut self, &mut T, A, B, C, D, E, F, G, H, I, J, K, L, M);
 }
 
 impl<R: Resources> Producer<R> for Manager<R> {
@@ -375,6 +406,7 @@ impl<R: Resources> Producer<R> for Manager<R> {
     fn clean_with<T,
         A: Fn(&mut T, &buffer::Raw<R>),
         B: Fn(&mut T, &R::Shader),
+        C: Fn(&mut T, &R::RenderPass),
         D: Fn(&mut T, &R::PipelineStateObject),
         E: Fn(&mut T, &texture::Raw<R>),
         F: Fn(&mut T, &R::ShaderResourceView),
@@ -384,7 +416,8 @@ impl<R: Resources> Producer<R> for Manager<R> {
         J: Fn(&mut T, &R::Sampler),
         K: Fn(&mut T, &R::Fence),
         L: Fn(&mut T, &mapping::Raw<R>),
-    >(&mut self, param: &mut T, fa: A, fb: B, fd: D, fe: E, ff: F, fg: G, fh: H, fi: I, fj: J, fk: K, fl: L) {
+        M: Fn(&mut T, &R::PipelineLayout),
+    >(&mut self, param: &mut T, fa: A, fb: B, fc: C, fd: D, fe: E, ff: F, fg: G, fh: H, fi: I, fj: J, fk: K, fl: L, fm: M) {
         fn clean_vec<X, Param, Fun>(param: &mut Param, vector: &mut Vec<Arc<X>>, fun: Fun)
             where Fun: Fn(&mut Param, &X)
         {
@@ -402,17 +435,19 @@ impl<R: Resources> Producer<R> for Manager<R> {
                 vector.swap_remove(*t);
             }
         }
-        clean_vec(param, &mut self.buffers,       fa);
-        clean_vec(param, &mut self.shaders,       fb);
-        clean_vec(param, &mut self.psos,          fd);
-        clean_vec(param, &mut self.textures,      fe);
-        clean_vec(param, &mut self.srvs,          ff);
-        clean_vec(param, &mut self.uavs,          fg);
-        clean_vec(param, &mut self.rtvs,          fh);
-        clean_vec(param, &mut self.dsvs,          fi);
-        clean_vec(param, &mut self.samplers,      fj);
-        clean_vec(param, &mut self.fences,        fk);
-        clean_vec(param, &mut self.mappings,      fl);
+        clean_vec(param, &mut self.buffers,  fa);
+        clean_vec(param, &mut self.shaders,  fb);
+        clean_vec(param, &mut self.passes,   fc);
+        clean_vec(param, &mut self.psos,     fd);
+        clean_vec(param, &mut self.textures, fe);
+        clean_vec(param, &mut self.srvs,     ff);
+        clean_vec(param, &mut self.uavs,     fg);
+        clean_vec(param, &mut self.rtvs,     fh);
+        clean_vec(param, &mut self.dsvs,     fi);
+        clean_vec(param, &mut self.samplers, fj);
+        clean_vec(param, &mut self.fences,   fk);
+        clean_vec(param, &mut self.mappings, fl);
+        clean_vec(param, &mut self.layouts,  fm);
     }
 }
 
@@ -422,6 +457,7 @@ impl<R: Resources> Manager<R> {
         Manager {
             buffers: Vec::new(),
             shaders: Vec::new(),
+            passes: Vec::new(),
             psos: Vec::new(),
             textures: Vec::new(),
             srvs: Vec::new(),
@@ -431,12 +467,14 @@ impl<R: Resources> Manager<R> {
             samplers: Vec::new(),
             fences: Vec::new(),
             mappings: Vec::new(),
+            layouts: Vec::new(),
         }
     }
     /// Clear all references
     pub fn clear(&mut self) {
         self.buffers.clear();
         self.shaders.clear();
+        self.passes.clear();
         self.psos.clear();
         self.textures.clear();
         self.srvs.clear();
@@ -446,11 +484,13 @@ impl<R: Resources> Manager<R> {
         self.samplers.clear();
         self.fences.clear();
         self.mappings.clear();
+        self.layouts.clear();
     }
     /// Extend with all references of another handle manager
     pub fn extend(&mut self, other: &Manager<R>) {
         self.buffers  .extend(other.buffers  .iter().map(|h| h.clone()));
         self.shaders  .extend(other.shaders  .iter().map(|h| h.clone()));
+        self.passes   .extend(other.passes   .iter().map(|h| h.clone()));
         self.psos     .extend(other.psos     .iter().map(|h| h.clone()));
         self.textures .extend(other.textures .iter().map(|h| h.clone()));
         self.srvs     .extend(other.srvs     .iter().map(|h| h.clone()));
@@ -460,11 +500,13 @@ impl<R: Resources> Manager<R> {
         self.samplers .extend(other.samplers .iter().map(|h| h.clone()));
         self.fences   .extend(other.fences   .iter().map(|h| h.clone()));
         self.mappings .extend(other.mappings .iter().map(|h| h.clone()));
+        self.layouts  .extend(other.layouts  .iter().map(|h| h.clone()));
     }
     /// Count the total number of referenced resources
     pub fn count(&self) -> usize {
         self.buffers.len() +
         self.shaders.len() +
+        self.passes.len() +
         self.psos.len() +
         self.textures.len() +
         self.srvs.len() +
@@ -473,7 +515,8 @@ impl<R: Resources> Manager<R> {
         self.dsvs.len() +
         self.samplers.len() +
         self.fences.len() +
-        self.mappings.len()
+        self.mappings.len() +
+        self.layouts.len()
     }
     /// Reference a buffer
     pub fn ref_buffer<'a>(&mut self, handle: &'a RawBuffer<R>) -> &'a R::Buffer {
@@ -483,6 +526,12 @@ impl<R: Resources> Manager<R> {
     /// Reference a shader
     pub fn ref_shader<'a>(&mut self, handle: &'a Shader<R>) -> &'a R::Shader {
         self.shaders.push(handle.0.clone());
+        &handle.0
+    }
+
+    /// Reference a RenderPass
+    pub fn ref_pass<'a>(&mut self, handle: &'a RenderPass<R>) -> &'a R::RenderPass {
+        self.passes.push(handle.0.clone());
         &handle.0
     }
 
@@ -527,5 +576,10 @@ impl<R: Resources> Manager<R> {
     pub fn ref_fence<'a>(&mut self, fence: &'a Fence<R>) -> &'a R::Fence {
         self.fences.push(fence.0.clone());
         &fence.0
+    }
+    /// Reference a pipeline layout
+    pub fn ref_layout<'a>(&mut self, layout: &'a PipelineLayout<R>) -> &'a R::PipelineLayout {
+        self.layouts.push(layout.0.clone());
+        &layout.0
     }
 }

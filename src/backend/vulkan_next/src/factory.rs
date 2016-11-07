@@ -224,8 +224,8 @@ impl factory::Factory<R> for Factory {
         unimplemented!()
     }
 
-    fn create_graphics_pipelines(&mut self, infos: &[(&ShaderSet<R>, &pso::PipelineDesc)]) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>> {
-        let create_infos = infos.iter().map(|&(shader_set, desc)| {
+    fn create_graphics_pipelines<'a>(&mut self, infos: &[(&ShaderSet<R>, &handle::PipelineLayout<R>, handle::SubPass<'a, R>, &pso::PipelineDesc)]) -> Vec<Result<handle::RawPipelineState<R>, pso::CreationError>> {
+        let create_infos = infos.iter().map(|&(shader_set, layout, ref subpass, desc)| {
             let stages = self.get_shader_stages(shader_set);
             let (polygon, line_width) = data::map_polygon_mode(desc.rasterizer.method);
             vk::GraphicsPipelineCreateInfo {
@@ -293,7 +293,16 @@ impl factory::Factory<R> for Factory {
                     minDepthBounds: 0.0,
                     maxDepthBounds: 1.0,
                 },
-                pColorBlendState: ptr::null(), // TODO
+                pColorBlendState: &vk::PipelineColorBlendStateCreateInfo {
+                    sType: vk::STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                    pNext: ptr::null(),
+                    flags: 0,
+                    logicOpEnable: vk::FALSE,
+                    logicOp: 0,
+                    attachmentCount: 0, // TODO
+                    pAttachments: ptr::null(), // TODO
+                    blendConstants: [0.0; 4], // TODO
+                },
                 pDynamicState: &vk::PipelineDynamicStateCreateInfo {
                     sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
                     pNext: ptr::null(),
@@ -306,12 +315,11 @@ impl factory::Factory<R> for Factory {
                         vk::DYNAMIC_STATE_STENCIL_REFERENCE,
                         ].as_ptr(),
                 },
-                // TODO:
-                layout: 0,
-                renderPass: 0,
-                subpass: 0,
-                basePipelineHandle: 0,
-                basePipelineIndex: 0,
+                layout: self.share.handles.borrow_mut().ref_layout(layout).layout,
+                renderPass: self.share.handles.borrow_mut().ref_pass(subpass.get_render_pass()).render_pass,
+                subpass: subpass.get_subpass_index() as u32,
+                basePipelineHandle: 0, // Specs: 9.5: VK_NULL_HANDLE
+                basePipelineIndex: -1, // Specs 9.5
             }
         }).collect::<Vec<_>>();
 

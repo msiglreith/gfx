@@ -28,9 +28,11 @@ use shade::Usage;
 use std::error::Error;
 use std::fmt;
 
-
 /// Maximum number of vertex buffers used in a PSO definition.
 pub const MAX_VERTEX_BUFFERS: usize = 4;
+
+/// Maximum number of descriptor sets used in a PSO definition.
+pub const MAX_DESCRIPTOR_SETS: usize = 16; // TODO: this is a random number atm
 
 /// An offset inside a vertex buffer, in bytes.
 pub type BufferOffset = usize;
@@ -160,6 +162,14 @@ pub type ColorTargetDesc = (format::Format, ColorInfo);
 /// PSO depth-stencil target descriptor
 pub type DepthStencilDesc = (format::Format, DepthStencilInfo);
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DescriptorSetDesc {
+    ConstantBuffers([Option<ConstantBufferDesc>; MAX_CONSTANT_BUFFERS]),
+    ResourceViews([Option<ResourceViewDesc>; MAX_RESOURCE_VIEWS]),
+    UnorderedViews([Option<UnorderedViewDesc>; MAX_UNORDERED_VIEWS]),
+    Samplers([Option<SamplerDesc>; MAX_SAMPLERS]),
+}
+
 /// All the information surrounding a shader program that is required
 /// for PSO creation, including the formats of vertex buffers and pixel targets;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -170,18 +180,12 @@ pub struct PipelineDesc {
     pub rasterizer: s::Rasterizer,
     /// Enable scissor test
     pub scissor: bool,
+    /// Descriptor sets
+    pub descriptor_sets: [Option<DescriptorSetDesc>; MAX_DESCRIPTOR_SETS],
     /// Vertex buffers
     pub vertex_buffers: [Option<VertexBufferDesc>; MAX_VERTEX_BUFFERS],
     /// Vertex attributes
     pub attributes: [Option<AttributeDesc>; MAX_VERTEX_ATTRIBUTES],
-    /// Constant buffers
-    pub constant_buffers: [Option<ConstantBufferDesc>; MAX_CONSTANT_BUFFERS],
-    /// Shader resource views
-    pub resource_views: [Option<ResourceViewDesc>; MAX_RESOURCE_VIEWS],
-    /// Unordered access views
-    pub unordered_views: [Option<UnorderedViewDesc>; MAX_UNORDERED_VIEWS],
-    /// Samplers
-    pub samplers: [Option<SamplerDesc>; MAX_SAMPLERS],
     /// Render target views (RTV)
     pub color_targets: [Option<ColorTargetDesc>; MAX_COLOR_TARGETS],
     /// Depth stencil view (DSV)
@@ -195,12 +199,9 @@ impl PipelineDesc {
             primitive: primitive,
             rasterizer: rast,
             scissor: false,
+            descriptor_sets: [None; MAX_DESCRIPTOR_SETS],
             vertex_buffers: [None; MAX_VERTEX_BUFFERS],
             attributes: [None; MAX_VERTEX_ATTRIBUTES],
-            constant_buffers: [None; MAX_CONSTANT_BUFFERS],
-            resource_views: [None; MAX_RESOURCE_VIEWS],
-            unordered_views: [None; MAX_UNORDERED_VIEWS],
-            samplers: [None; MAX_SAMPLERS],
             color_targets: [None; MAX_COLOR_TARGETS],
             depth_stencil: None,
         }
@@ -345,4 +346,3 @@ impl<R: Resources> AccessInfo<R> {
         &self.mapped_writes[..]
     }
 }
-
