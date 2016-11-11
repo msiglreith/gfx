@@ -31,4 +31,3 @@ log = "0.3"
 bitflags = "0.7"
 gfx_core = { path = "../core", version = "0.5" }
 draw_state = "0.6"
-

@@ -29,4 +29,8 @@ name = "gfx_device_dx12_next"
 log = "0.3"
 gfx_core_next = { path = "../../core_next", version = "0.1.0" }
 d3d12-sys = "0.2"
+dxgi-sys = "0.2" # TODO
+dxguid-sys = "0.2"
 winapi = "0.2.8"
+winit = "0.5"
+comptr = { path = "../../../../comptr-rs" } # TODO

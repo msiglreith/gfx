@@ -21,6 +21,7 @@ extern crate draw_state;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::any::Any;
+use std::sync::Arc;
 
 pub use draw_state::{state, target};
 pub use self::factory::Factory;
@@ -55,7 +56,22 @@ pub trait Queue {
 
 pub trait CommandPool {
     fn reset(&mut self);
-    
+}
+
+#[derive(Clone, Debug)]
+pub struct PhysicalDeviceInfo {
+    pub device_name: String, // TODO: fixed size?
+    pub vendor_id: usize,
+    pub device_id: usize,
+    pub software: bool,
+}
+
+pub trait PhysicalDevice {
+    type Device: Device;
+    type Queue: Queue;
+
+    fn open_device(&self) -> (Arc<Self::Device>, Vec<Arc<Self::Queue>>);
+    fn get_info(&self) -> &PhysicalDeviceInfo;
 }
 
 pub trait Device {
@@ -63,11 +79,38 @@ pub trait Device {
 }
 
 pub trait Instance {
+    type PhysicalDevice: PhysicalDevice;
+    fn enumerate_physical_devices(&self) -> &Vec<Self::PhysicalDevice>; // TODO: return an actual iterator
+}
+
+pub struct SurfaceCapabilities {
 
 }
 
+pub trait Surface {
+    type Instance: Instance;
+    type Device: Device;
+    type Queue: Queue;
+    type Window;
+
+    fn from_window(&Arc<Self::Instance>, &Self::Window) -> Self;
+    fn supports_presentation(&self, present_queue: &Arc<Self::Queue>) -> bool;
+    fn get_capabilities(&self, device: &Arc<Self::Device>) -> SurfaceCapabilities;
+}
+
 pub trait SwapChain {
-    fn swap_buffers(&mut self);
+    type Resources: Resources;
+    type Factory: Factory<Self::Resources>;
+    type Surface: Surface;
+    type Queue: Queue;
+    fn new<T: core::format::RenderFormat>(
+        factory: &mut Self::Factory,
+        present_queue: &Arc<Self::Queue>,
+        surface: &Self::Surface,
+        width: u32,
+        height: u32
+    ) -> Self;
+    fn present(&mut self);
 }
 
 /// Operations that must be provided by a fence.
@@ -152,7 +195,7 @@ impl<R: Resources> ShaderSet<R> {
     }
 }
 
-/// Different types of a specific API. 
+/// Different resource types of a specific API. 
 pub trait Resources:          Clone + Hash + Debug + Eq + PartialEq + Any {
     type Buffer:              Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync + Copy;
     type Shader:              Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync;
@@ -167,4 +210,16 @@ pub trait Resources:          Clone + Hash + Debug + Eq + PartialEq + Any {
     type Sampler:             Clone + Hash + Debug + Eq + PartialEq + Any + Send + Sync + Copy;
     type Fence:               Clone + Hash + Debug + Eq + PartialEq + Any + Fence;
     type Mapping:             Debug + Any + mapping::Gate<Self>;
+}
+
+/// Different types of a specific API.
+pub trait Backend {
+    type Instance: Instance;
+    type Device: Device;
+    type Queue: Queue;
+    type PhysicalDevice: PhysicalDevice;
+    type Surface: Surface;
+    type SwapChain: SwapChain;
+    type CommandPool: CommandPool;
+    type Resources: Resources;
 }

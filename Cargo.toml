@@ -119,6 +119,10 @@ path = "examples/particle/main.rs"
 name = "core_next"
 path = "examples/next_api/main.rs"
 
+[[example]]
+name = "next_dx12"
+path = "examples/next_dx12/main.rs"
+
 [dev_dependencies]
 log = "0.3"
 cgmath = "0.7"
