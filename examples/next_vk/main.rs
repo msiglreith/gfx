@@ -6,6 +6,7 @@ extern crate env_logger;
 extern crate winit;
 
 use gfx_core_next::factory::Factory;
+use gfx_core_next::{Instance, Surface, SwapChain};
 
 pub type ColorFormat = gfx::format::Bgra8;
 
@@ -16,13 +17,13 @@ fn main() {
         .with_title("core_next".to_string()).build().unwrap();
 
     let (instance, share) = vulkan::Instance::new("next", 1, &[], &["VK_KHR_surface"]);
-    let physical_device = &instance.physical_devices()[0];
+    let physical_device = &instance.enumerate_physical_devices()[0];
     let (device, queues) = physical_device.open_device(&instance, &["VK_KHR_swapchain"], |_| { true });
 
     let mut factory = vulkan::Factory::new(device.clone(), share.clone());
 
-    let surface = vulkan::Surface::new(&instance, &window);
-    let swap_chain = vulkan::SwapChain::new::<ColorFormat>(&mut factory, &instance, &queues[0], &surface, 1440, 900);
+    let surface = vulkan::Surface::from_window(&instance, &window);
+    let mut swap_chain = vulkan::SwapChain::new::<ColorFormat>(&mut factory, &queues[0], &surface, 1440, 900);
 
     let main_pool = queues[0].create_command_pool();
     let cmd_buffers = main_pool.create_command_buffers(16);

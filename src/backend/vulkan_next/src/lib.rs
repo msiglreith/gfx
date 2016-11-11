@@ -624,16 +624,12 @@ impl Instance {
     pub fn get(&self) -> (vk::Instance, &vk::InstancePointers) {
         (self.inner, &self.pointers)
     }
-
-    pub fn physical_devices(&self) -> &Vec<PhysicalDevice> {
-        &self.physical_devices
-    }
 }
 
 impl core::Instance for Instance {
     type PhysicalDevice = PhysicalDevice;
-    fn enumerate_physical_devices(&mut self) -> Vec<Self::PhysicalDevice> {
-        unimplemented!()
+    fn enumerate_physical_devices(&self) -> &Vec<Self::PhysicalDevice> {
+        &self.physical_devices
     }
 }
 

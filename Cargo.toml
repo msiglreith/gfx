@@ -116,8 +116,8 @@ name = "particle"
 path = "examples/particle/main.rs"
 
 [[example]]
-name = "core_next"
-path = "examples/next_api/main.rs"
+name = "next_vk"
+path = "examples/next_vk/main.rs"
 
 [[example]]
 name = "next_dx12"
