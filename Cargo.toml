@@ -82,7 +82,7 @@ path = "examples/ubo_tilemap/main.rs"
 name = "mipmap"
 path = "examples/mipmap/main.rs"
 
-[dev_dependencies]
+[dev-dependencies]
 log = "0.3"
 cgmath = "0.7"
 gfx_gl = "0.3"
@@ -91,5 +91,5 @@ genmesh = "0.4"
 noise = "0.1"
 image = "0.6"
 
-[target.x86_64-unknown-linux-gnu.dev_dependencies]
+[target.x86_64-unknown-linux-gnu.dev-dependencies]
 glfw = "0.5"
