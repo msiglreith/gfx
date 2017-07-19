@@ -43,6 +43,7 @@ mod mirror;
 mod map;
 pub mod native;
 
+/*
 pub use self::command::CommandBuffer;
 pub use self::factory::Factory;
 pub use self::map::*;
@@ -348,4 +349,83 @@ pub fn create(format: core::format::Format,
     };
 
     Ok((device, factory, color_target, d, bb))
+}
+*/
+
+#[derive(Clone)]
+pub struct QueueFamily;
+impl core::QueueFamily for QueueFamily {
+    fn num_queues(&self) -> u32 { 1 }
+}
+
+pub struct Adapter {
+    device: MTLDevice,
+    adapter_info: core::AdapterInfo,
+    queue_families: [QueueFamily; 1],
+}
+
+impl core::Adapter for Adapter {
+    fn open(&self, queue_descs: &[(&QueueFamily, QueueType, u32)])
+        -> core::Device<Backend>
+    {
+        if queue_descs.len() != 1 {
+            panic!("Metal only supports one queue family");
+        }
+        let (_, queue_type, queue_count) = queue_descs.next().unwrap();
+        let factory = factory::create_factory(self.device);
+
+        // TODO: queues
+        core::Device {
+            factory,
+            general_queues: Vec::new(),
+            graphics_queues: Vec::new(),
+            compute_queues: Vec::new(),
+            transfer_queues: Vec::new(),
+            heap_types: Vec::new(),
+            memory_heaps: Vec::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    fn get_info(&self) -> &core::AdapterInfo {
+        unimplemented!()
+    }
+
+    fn get_queue_families(&self) -> &[(QueueFamily, QueueType)] {
+        unimplemented!()
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub enum Backend {}
+impl core::Backend for Backend {
+    type Adapter = Adapter;
+    type Resources = Resources;
+    type CommandQueue = CommandQueue;
+    type RawCommandBuffer = command::CommandBuffer;
+    type SubpassCommandBuffer = command::SubpassCommandBuffer;
+    type SubmitInfo = command::SubmitInfo;
+    type Factory = Factory;
+    type QueueFamily = QueueFamily;
+
+    type RawCommandPool = pool::RawCommandPool;
+    type SubpassCommandPool = pool::SubpassCommandPool;
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub enum Resources {}
+impl core::Resources for Resources {
+    type Buffer = ();
+    type Shader = ();
+    type Program = ();
+    type PipelineStateObject = ();
+    type Texture = ();
+    type ShaderResourceView = ();
+    type UnorderedAccessView = ();
+    type RenderTargetView = ();
+    type DepthStencilView = ();
+    type Sampler = ();
+    type Fence = ();
+    type Semaphore = ();
+    type Mapping = Mapping;
 }
