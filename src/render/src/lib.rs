@@ -79,5 +79,3 @@ pub mod pso;
 pub mod shade;
 /// Convenience macros
 pub mod macros;
-/// Resource tracking
-pub mod tracker;
