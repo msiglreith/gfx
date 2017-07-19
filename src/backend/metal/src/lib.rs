@@ -41,6 +41,7 @@ mod encoder;
 mod command;
 mod mirror;
 mod map;
+pub mod native;
 
 pub use self::command::CommandBuffer;
 pub use self::factory::Factory;
@@ -56,40 +57,6 @@ const MTL_MAX_SAMPLER_BINDINGS: usize = 16;
 pub struct Share {
     capabilities: core::Capabilities,
     handles: RefCell<handle::Manager<Resources>>,
-}
-
-pub mod native {
-    use metal::*;
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Buffer(pub *mut MTLBuffer);
-    unsafe impl Send for Buffer {}
-    unsafe impl Sync for Buffer {}
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Texture(pub *mut MTLTexture);
-    unsafe impl Send for Texture {}
-    unsafe impl Sync for Texture {}
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Sampler(pub MTLSamplerState);
-    unsafe impl Send for Sampler {}
-    unsafe impl Sync for Sampler {}
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Rtv(pub *mut MTLTexture);
-    unsafe impl Send for Rtv {}
-    unsafe impl Sync for Rtv {}
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Dsv(pub *mut MTLTexture, pub Option<u16>);
-    unsafe impl Send for Dsv {}
-    unsafe impl Sync for Dsv {}
-
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-    pub struct Srv(pub *mut MTLTexture);
-    unsafe impl Send for Srv {}
-    unsafe impl Sync for Srv {}
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
