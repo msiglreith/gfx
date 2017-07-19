@@ -26,7 +26,7 @@ use core::memory::Typed;
 
 use metal::*;
 
-use command::CommandBuffer;
+use command::RawCommandBuffer;
 
 use MTL_MAX_BUFFER_BINDINGS;
 
@@ -74,8 +74,8 @@ impl Factory {
         }
     }
 
-    pub fn create_command_buffer(&self) -> CommandBuffer {
-        CommandBuffer::new(self.device, self.queue)
+    pub fn create_command_buffer(&self) -> RawCommandBuffer {
+        RawCommandBuffer::new(self.device, self.queue)
     }
 
     fn create_buffer_internal(&self,

@@ -45,8 +45,6 @@ mod map;
 pub mod native;
 mod pool;
 
-/*
-pub use self::command::CommandBuffer;
 pub use self::factory::Factory;
 pub use self::map::*;
 
@@ -54,6 +52,9 @@ pub use self::map::*;
 const MTL_MAX_TEXTURE_BINDINGS: usize = 128;
 const MTL_MAX_BUFFER_BINDINGS: usize = 31;
 const MTL_MAX_SAMPLER_BINDINGS: usize = 16;
+
+/*
+pub use self::command::CommandBuffer;
 
 /// Internal struct of shared data between the device and its factories.
 #[doc(hidden)]
@@ -66,21 +67,6 @@ pub struct Share {
 pub struct InputLayout(pub MTLVertexDescriptor);
 unsafe impl Send for InputLayout {}
 unsafe impl Sync for InputLayout {}
-
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Shader {
-    func: MTLFunction,
-}
-unsafe impl Send for Shader {}
-unsafe impl Sync for Shader {}
-
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Program {
-    vs: MTLFunction,
-    ps: MTLFunction,
-}
-unsafe impl Send for Program {}
-unsafe impl Sync for Program {}
 
 pub struct ShaderLibrary {
     lib: MTLLibrary,
@@ -102,22 +88,6 @@ impl Clone for ShaderLibrary {
         ShaderLibrary { lib: self.lib }
     }
 }
-
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Pipeline {
-    pipeline: MTLRenderPipelineState,
-    depth_stencil: Option<MTLDepthStencilState>,
-    winding: MTLWinding,
-    cull: MTLCullMode,
-    fill: MTLTriangleFillMode,
-    alpha_to_one: bool,
-    alpha_to_coverage: bool,
-    depth_bias: i32,
-    slope_scaled_depth_bias: i32,
-    depth_clip: bool,
-}
-unsafe impl Send for Pipeline {}
-unsafe impl Sync for Pipeline {}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Buffer(native::Buffer, Usage, Bind);
@@ -455,17 +425,17 @@ impl core::Backend for Backend {
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Resources {}
 impl core::Resources for Resources {
-    type Buffer = ();
-    type Shader = ();
-    type Program = ();
-    type PipelineStateObject = ();
-    type Texture = ();
-    type ShaderResourceView = ();
-    type UnorderedAccessView = ();
-    type RenderTargetView = ();
-    type DepthStencilView = ();
+    type Buffer = native::Buffer;
+    type Shader = native::Shader;
+    type Program = native::Program;
+    type PipelineStateObject = native::Pipeline;
+    type Texture = native::Texture;
+    type ShaderResourceView = native::Srv;
+    type UnorderedAccessView = native::Uav;
+    type RenderTargetView = native::Rtv;
+    type DepthStencilView = native::Dsv;
     type Sampler = ();
     type Fence = ();
     type Semaphore = ();
-    type Mapping = Mapping;
+    type Mapping = factory::RawMapping;
 }

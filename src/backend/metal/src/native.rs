@@ -43,3 +43,34 @@ unsafe impl Sync for Dsv {}
 pub struct Srv(pub *mut MTLTexture);
 unsafe impl Send for Srv {}
 unsafe impl Sync for Srv {}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Shader {
+    func: MTLFunction,
+}
+unsafe impl Send for Shader {}
+unsafe impl Sync for Shader {}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Program {
+    vs: MTLFunction,
+    ps: MTLFunction,
+}
+unsafe impl Send for Program {}
+unsafe impl Sync for Program {}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Pipeline {
+    pipeline: MTLRenderPipelineState,
+    depth_stencil: Option<MTLDepthStencilState>,
+    winding: MTLWinding,
+    cull: MTLCullMode,
+    fill: MTLTriangleFillMode,
+    alpha_to_one: bool,
+    alpha_to_coverage: bool,
+    depth_bias: i32,
+    slope_scaled_depth_bias: i32,
+    depth_clip: bool,
+}
+unsafe impl Send for Pipeline {}
+unsafe impl Sync for Pipeline {}
