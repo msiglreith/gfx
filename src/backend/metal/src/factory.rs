@@ -20,7 +20,7 @@ use std::path::Path;
 // use cocoa::base::{selector, class};
 // use cocoa::foundation::{NSUInteger};
 
-use core::{self, buffer, factory, mapping, memory};
+use core::{self, buffer, factory, mapping, memory, native as n};
 use core::handle::{self, Producer};
 use core::memory::Typed;
 
@@ -30,7 +30,7 @@ use command::RawCommandBuffer;
 
 use MTL_MAX_BUFFER_BINDINGS;
 
-use {Resources, Share, Texture, Buffer, Shader, Program, ShaderLibrary, Pipeline};
+use {Resources, Share};
 use native;
 use mirror;
 

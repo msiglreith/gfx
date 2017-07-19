@@ -15,12 +15,12 @@
 use metal::*;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Buffer(pub *mut MTLBuffer);
+pub struct RawBuffer(pub *mut MTLBuffer);
 unsafe impl Send for Buffer {}
 unsafe impl Sync for Buffer {}
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Texture(pub *mut MTLTexture);
+pub struct RawTexture(pub *mut MTLTexture);
 unsafe impl Send for Texture {}
 unsafe impl Sync for Texture {}
 
@@ -43,6 +43,9 @@ unsafe impl Sync for Dsv {}
 pub struct Srv(pub *mut MTLTexture);
 unsafe impl Send for Srv {}
 unsafe impl Sync for Srv {}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Uav;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Shader {
@@ -74,3 +77,30 @@ pub struct Pipeline {
 }
 unsafe impl Send for Pipeline {}
 unsafe impl Sync for Pipeline {}
+
+pub struct ShaderLibrary {
+    lib: MTLLibrary,
+}
+unsafe impl Send for ShaderLibrary {}
+unsafe impl Sync for ShaderLibrary {}
+
+// ShaderLibrary isn't handled via Device.cleanup(). Not really an issue since it will usually
+// live for the entire application lifetime and be cloned rarely.
+impl Drop for ShaderLibrary {
+    fn drop(&mut self) {
+        unsafe { self.lib.release() };
+    }
+}
+
+impl Clone for ShaderLibrary {
+    fn clone(&self) -> Self {
+        unsafe { self.lib.retain() };
+        ShaderLibrary { lib: self.lib }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Buffer(native::Buffer, Usage, Bind);
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Texture(native::Texture, Usage);

@@ -34,7 +34,7 @@ impl pool::RawCommandPool<Backend> for RawCommandPool {
         unimplemented!()
     }
 
-    unsafe fn acquire_command_buffer(&mut self) -> &mut CommandBuffer {
+    unsafe fn acquire_command_buffer(&mut self) -> &mut RawCommandBuffer {
         unimplemented!()
     }
 }

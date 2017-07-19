@@ -56,44 +56,10 @@ const MTL_MAX_SAMPLER_BINDINGS: usize = 16;
 /*
 pub use self::command::CommandBuffer;
 
-/// Internal struct of shared data between the device and its factories.
-#[doc(hidden)]
-pub struct Share {
-    capabilities: core::Capabilities,
-    handles: RefCell<handle::Manager<Resources>>,
-}
-
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct InputLayout(pub MTLVertexDescriptor);
 unsafe impl Send for InputLayout {}
 unsafe impl Sync for InputLayout {}
-
-pub struct ShaderLibrary {
-    lib: MTLLibrary,
-}
-unsafe impl Send for ShaderLibrary {}
-unsafe impl Sync for ShaderLibrary {}
-
-// ShaderLibrary isn't handled via Device.cleanup(). Not really an issue since it will usually
-// live for the entire application lifetime and be cloned rarely.
-impl Drop for ShaderLibrary {
-    fn drop(&mut self) {
-        unsafe { self.lib.release() };
-    }
-}
-
-impl Clone for ShaderLibrary {
-    fn clone(&self) -> Self {
-        unsafe { self.lib.retain() };
-        ShaderLibrary { lib: self.lib }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Buffer(native::Buffer, Usage, Bind);
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Texture(native::Texture, Usage);
 
 pub struct Device {
     pub device: MTLDevice,
@@ -374,7 +340,7 @@ pub struct CommandQueue {
 
 impl core::CommandQueue<Backend> for CommandQueue {
     unsafe fn submit(&mut self, submit_infos: &[core::QueueSubmit<Backend>],
-        fence: Option<&handle::Fence<Resources>>, access: &com::AccessInfo<Resources>) {
+        fence: Option<&handle::Fence<Resources>>, access: &AccessInfo<Resources>) {
         unimplemented!()
     }
 
@@ -438,4 +404,11 @@ impl core::Resources for Resources {
     type Fence = ();
     type Semaphore = ();
     type Mapping = factory::RawMapping;
+}
+
+/// Internal struct of shared data.
+#[doc(hidden)]
+pub struct Share {
+    capabilities: core::Capabilities,
+    handles: RefCell<handle::Manager<Resources>>,
 }

@@ -40,6 +40,8 @@ pub struct SubmitInfo {
     command_buffer: MTLCommandBuffer
 }
 
+unsafe impl Send for SubmitInfo { }
+
 impl Drop for SubmitInfo {
     fn drop(&mut self) {
         unsafe { self.command_buffer.release(); }
