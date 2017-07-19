@@ -28,11 +28,12 @@ extern crate bit_set;
 use metal::*;
 
 use core::{handle, texture as tex};
-use core::SubmissionResult;
+use core::{QueueType, SubmissionResult};
 use core::memory::{self, Usage, Bind};
 use core::command::{AccessInfo, AccessGuard};
 
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::sync::Arc;
 // use std::{mem, ptr};
 
@@ -42,6 +43,7 @@ mod command;
 mod mirror;
 mod map;
 pub mod native;
+mod pool;
 
 /*
 pub use self::command::CommandBuffer;
@@ -364,7 +366,7 @@ pub struct Adapter {
     queue_families: [QueueFamily; 1],
 }
 
-impl core::Adapter for Adapter {
+impl core::Adapter<Backend> for Adapter {
     fn open(&self, queue_descs: &[(&QueueFamily, QueueType, u32)])
         -> core::Device<Backend>
     {
@@ -396,13 +398,51 @@ impl core::Adapter for Adapter {
     }
 }
 
+pub struct CommandQueue {
+
+}
+
+impl core::CommandQueue<Backend> for CommandQueue {
+    unsafe fn submit(&mut self, submit_infos: &[core::QueueSubmit<Backend>],
+        fence: Option<&handle::Fence<Resources>>, access: &com::AccessInfo<Resources>) {
+        unimplemented!()
+    }
+
+    fn wait_idle(&mut self) {
+        unimplemented!()
+    }
+
+    fn pin_submitted_resources(&mut self, man: &handle::Manager<Resources>) {
+        /*
+        self.frame_handles.extend(man);
+        match self.max_resource_count {
+            Some(c) if self.frame_handles.count() > c => {
+                error!("Way too many resources in the current frame. Did you call Device::cleanup()?");
+                self.max_resource_count = None;
+            },
+            _ => (),
+        }*/
+        unimplemented!()
+    }
+
+    fn cleanup(&mut self) {
+        /*
+        use core::handle::Producer;
+
+        self.frame_handles.clear();
+        // TODO
+        */
+        unimplemented!()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Backend {}
 impl core::Backend for Backend {
     type Adapter = Adapter;
     type Resources = Resources;
     type CommandQueue = CommandQueue;
-    type RawCommandBuffer = command::CommandBuffer;
+    type RawCommandBuffer = command::RawCommandBuffer;
     type SubpassCommandBuffer = command::SubpassCommandBuffer;
     type SubmitInfo = command::SubmitInfo;
     type Factory = Factory;

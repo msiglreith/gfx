@@ -36,7 +36,17 @@ use metal::*;
 use std::ptr;
 use std::collections::hash_map::{HashMap, Entry};
 
-pub struct CommandBuffer {
+pub struct SubmitInfo {
+    command_buffer: MTLCommandBuffer
+}
+
+impl Drop for SubmitInfo {
+    fn drop(&mut self) {
+        unsafe { self.command_buffer.release(); }
+    }
+}
+
+pub struct RawCommandBuffer {
     queue: MTLCommandQueue,
     device: MTLDevice,
     encoder: MetalEncoder,
@@ -46,11 +56,11 @@ pub struct CommandBuffer {
     dsv_clear: HashMap<Dsv, (Option<f32>, Option<u8>)>,
 }
 
-unsafe impl Send for CommandBuffer {}
+unsafe impl Send for RawCommandBuffer {}
 
-impl CommandBuffer {
+impl RawCommandBuffer {
     pub fn new(device: MTLDevice, queue: MTLCommandQueue) -> Self {
-        CommandBuffer {
+        RawCommandBuffer {
             device: device,
             queue: queue,
             encoder: MetalEncoder::new(queue.new_command_buffer()),
@@ -63,9 +73,9 @@ impl CommandBuffer {
     pub fn commit(&mut self, drawable: CAMetalDrawable) {
         if !self.rtv_clear.is_empty() || !self.dsv_clear.is_empty() {
             // TODO: should we can find a way to clear buffers anyway (e.g. by issuing a no-op render pass)?
-            warn!("There were unprocessed clear operations in this CommandBuffer. Metal only allows clearing \
+            warn!("There were unprocessed clear operations in this RawCommandBuffer. Metal only allows clearing \
             during pixel target binding, so you must bind targets to a render pass between requesting a clear \
-            and committing the CommandBuffer.");
+            and committing the RawCommandBuffer.");
             self.rtv_clear.clear();
             self.dsv_clear.clear();
         }
@@ -93,7 +103,7 @@ impl CommandBuffer {
     }
 }
 
-impl command::Buffer<Resources> for CommandBuffer {
+impl command::Buffer<Resources> for RawCommandBuffer {
     fn reset(&mut self) {
         self.encoder.reset();
     }
@@ -254,8 +264,8 @@ impl command::Buffer<Resources> for CommandBuffer {
                 }
 
                 // It may be the case that we have a stencil clear command for this buffer
-                // queued but a stencil attachment is not requested. In that case, the 
-                // stencil clear must be preserved for future attachments, but the depth 
+                // queued but a stencil attachment is not requested. In that case, the
+                // stencil clear must be preserved for future attachments, but the depth
                 // clear has been processed already and must be removed.
                 if let Some(stencil_value) = clear_entry.get().1 {
                     if let Some(stencil_attachment) = stencil_attachment {
@@ -422,10 +432,10 @@ impl command::Buffer<Resources> for CommandBuffer {
     fn clear_depth_stencil(&mut self, target: Dsv,
                            depth: Option<target::Depth>, stencil: Option<target::Stencil>) {
         match self.dsv_clear.entry(target) {
-            Entry::Occupied(mut entry) => { 
+            Entry::Occupied(mut entry) => {
                 let new_depth = depth.or(entry.get().0);
                 let new_stencil = stencil.or(entry.get().1);
-                entry.insert((new_depth, new_stencil)); 
+                entry.insert((new_depth, new_stencil));
             },
             Entry::Vacant(entry) => { entry.insert((depth, stencil)); },
         }
@@ -465,4 +475,8 @@ impl command::Buffer<Resources> for CommandBuffer {
             }
         }
     }
+}
+
+pub struct SubpassCommandBuffer {
+
 }
