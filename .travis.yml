@@ -8,15 +8,7 @@ rust:
   - stable
   - nightly
 os:
-  - linux
   - osx
-notifications:
-  webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/7479b6691b7e5e40716a
-    on_success: always
-    on_failure: always
-    on_start: false
 before_install:
   - "export DISPLAY=:99.0"
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sh -e /etc/init.d/xvfb start; fi
@@ -47,17 +39,6 @@ addons:
       - libosmesa6-dev
 script:
   - export RUST_BACKTRACE=1
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export PATH=$PATH:$HOME/deps/bin ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export LIBRARY_PATH=$HOME/deps/usr/lib/x86_64-linux-gnu ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export LD_LIBRARY_PATH=$LIBRARY_PATH ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo build --features vulkan; else cargo build; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cargo build --features metal; else cargo build; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then HEADLESS_FEATURE="--features headless"; fi
-  - cargo test --all
-  - cargo test -p gfx -p gfx_core --features "mint serialize"
-  - cargo test -p gfx_window_sdl
-  - cargo test -p gfx_device_gl
-  - cargo test -p gfx_window_glutin $HEADLESS_FEATURE
-  - cargo test -p gfx_window_glfw
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo test --all --features vulkan; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cargo test --all --features metal; fi
