@@ -144,7 +144,7 @@ pub struct Surface {
 
 struct SurfaceInner {
     nsview: *mut Object,
-    render_layer: RefCell<*mut Object>,
+    render_layer: *mut Object,
 }
 
 impl Drop for SurfaceInner {
@@ -168,8 +168,7 @@ impl core::Surface<device_metal::Backend> for Surface {
             _ => panic!("unsupported backbuffer format"), // TODO: more formats
         };
 
-        let render_layer_borrow = self.raw.render_layer.borrow_mut();
-        let render_layer = *render_layer_borrow;
+        let render_layer = self.raw.render_layer;
         let nsview = self.raw.nsview;
         let queue = present_queue.as_ref();
 
@@ -288,9 +287,7 @@ impl core::SwapChain<device_metal::Backend> for SwapChain {
 
         unsafe {
             let io_surface = &mut self.io_surfaces[buffer_index];
-            let render_layer_borrow = self.surface.render_layer.borrow_mut();
-            let render_layer = *render_layer_borrow;
-            msg_send![render_layer, setContents: io_surface.obj];
+            msg_send![self.surface.render_layer, setContents: io_surface.obj];
         }
 
         self.present_index += 1;
@@ -331,7 +328,7 @@ fn create_surface(window: &winit::Window) -> Surface {
             raw: Rc::new(
                     SurfaceInner {
                         nsview: view,
-                        render_layer: RefCell::new(render_layer),
+                        render_layer,
                     }),
             manager: handle::Manager::new(),
         }
