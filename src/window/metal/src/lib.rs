@@ -168,9 +168,9 @@ impl core::Surface<device_metal::Backend> for Surface {
             _ => panic!("unsupported backbuffer format"), // TODO: more formats
         };
 
-        let render_layer_borrow = self.0.render_layer.borrow_mut();
+        let render_layer_borrow = self.raw.render_layer.borrow_mut();
         let render_layer = *render_layer_borrow;
-        let nsview = self.0.nsview;
+        let nsview = self.raw.nsview;
         let queue = present_queue.as_ref();
 
         unsafe {
@@ -230,7 +230,7 @@ impl core::Surface<device_metal::Backend> for Surface {
             }).collect();
 
             SwapChain {
-                surface: self.0.clone(),
+                surface: self.raw.clone(),
                 pixel_width,
                 pixel_height,
 
