@@ -137,12 +137,14 @@ fn get_format_bytes_per_pixel(format: MTLPixelFormat) -> usize {
     }
 }
 
-pub struct Surface(Rc<SurfaceInner>);
+pub struct Surface {
+    raw: Rc<SurfaceInner>,
+    manager: handle::Manager<Resources>,
+}
 
 struct SurfaceInner {
     nsview: *mut Object,
     render_layer: RefCell<*mut Object>,
-    manager: handle::Manager<Resources>,
 }
 
 impl Drop for SurfaceInner {
@@ -208,7 +210,7 @@ impl core::Surface<device_metal::Backend> for Surface {
             let backbuffers = io_surfaces.iter().map(|surface| {
                 use core::handle::Producer;
                 let mapped_texture: MTLTexture = msg_send![device.0, newTextureWithDescriptor: backbuffer_descriptor.0 iosurface: surface.obj plane: 0];
-                let color = self.0.manager.make_texture(
+                let color = self.manager.make_texture(
                     device_metal::native::Texture(
                         device_metal::native::RawTexture(Box::into_raw(Box::new(mapped_texture))),
                         memory::Usage::Data,
@@ -325,10 +327,13 @@ fn create_surface(window: &winit::Window) -> Surface {
         msg_send![view_layer, addSublayer: render_layer];
 
         msg_send![view, retain];
-        Surface(Rc::new(SurfaceInner {
-            nsview: view,
-            render_layer: RefCell::new(render_layer),
+        Surface {
+            raw: Rc::new(
+                    SurfaceInner {
+                        nsview: view,
+                        render_layer: RefCell::new(render_layer),
+                    }),
             manager: handle::Manager::new(),
-        }))
+        }
     }
 }
