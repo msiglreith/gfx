@@ -71,7 +71,7 @@ impl ShadeExt for ::gfx_device_dx12::Factory {
 #[cfg(feature = "metal")]
 impl ShadeExt for ::gfx_device_metal::Factory {
     fn shader_backend(&self) -> Backend {
-        Backend::Metal(self.get_shader_model())
+        Backend::Msl(self.get_shader_model())
     }
 }
 

@@ -285,9 +285,9 @@ pub trait Application<B: Backend>: Sized {
     {
         let win = wb.build(&events_loop).unwrap();
         let dim = win.get_inner_size_points().unwrap();
-        let mut window = gfx_window_metal::Window::new(win);
+        let mut window = gfx_window_metal::Window(win);
         let (surface, adapters) = window.get_surface_and_adapters();
-        launch_metal::<Self>(wb);
+        run::<Self, _, _>(wb);
     }
     #[cfg(feature = "vulkan")]
     fn launch_default(wb: winit::WindowBuilder, events_loop: winit::EventsLoop)
