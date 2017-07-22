@@ -78,7 +78,7 @@ impl Factory {
         // Check support via MSL specs and compare OS versions for feature sets
         // [Metal Shading Language Specification Section 6.3](https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf)
         // [Metal Feature Set Tables](https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf)
-        match self.feature_set {
+        match self.share.feature_set {
             iOS_GPUFamily1_v1 |
             iOS_GPUFamily2_v1 => 10,
             iOS_GPUFamily1_v2 |

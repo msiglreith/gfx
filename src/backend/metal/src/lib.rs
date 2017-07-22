@@ -96,8 +96,8 @@ impl core::Adapter<Backend> for Adapter {
         assert_eq!(queue_descs.len(), 1);
 
         // Ascending order important here to get the best feature set
+        use metal::MTLFeatureSet::*;
         let feature_set = [
-            use metal::MTLFeatureSet::*;
             iOS_GPUFamily1_v1,
             iOS_GPUFamily1_v2,
             iOS_GPUFamily1_v3,
