@@ -56,6 +56,8 @@ const MTL_MAX_TEXTURE_BINDINGS: usize = 128;
 const MTL_MAX_BUFFER_BINDINGS: usize = 31;
 const MTL_MAX_SAMPLER_BINDINGS: usize = 16;
 
+pub type ShaderModel = u16;
+
 pub fn enumerate_adapters() -> Vec<Adapter> {
     // TODO: enumerate all devices
     let device = metal::create_system_default_device(); // Returns retained
@@ -93,6 +95,32 @@ impl core::Adapter<Backend> for Adapter {
         // Single queue family supported only
         assert_eq!(queue_descs.len(), 1);
 
+        // Ascending order important here to get the best feature set
+        let feature_set = [
+            use metal::MTLFeatureSet::*;
+            iOS_GPUFamily1_v1,
+            iOS_GPUFamily1_v2,
+            iOS_GPUFamily1_v3,
+            iOS_GPUFamily1_v4,
+
+            iOS_GPUFamily2_v1,
+            iOS_GPUFamily2_v2,
+            iOS_GPUFamily2_v3,
+            iOS_GPUFamily2_v4,
+
+            iOS_GPUFamily3_v1,
+            iOS_GPUFamily3_v2,
+            iOS_GPUFamily3_v3,
+
+            tvOS_GPUFamily1_v1,
+            tvOS_GPUFamily1_v2,
+            tvOS_GPUFamily1_v3,
+
+            macOS_GPUFamily1_v1,
+            macOS_GPUFamily1_v2,
+            macOS_GPUFamily1_v3,
+        ].into_iter().rev().find(|&&f| self.device.supports_feature_set(f));
+
         let share = Share {
             capabilities: core::Capabilities {
                 max_texture_size: 0,
@@ -108,6 +136,7 @@ impl core::Adapter<Backend> for Adapter {
                 copy_buffer_supported: true,
             },
             handles: RefCell::new(handle::Manager::new()),
+            feature_set: feature_set.unwrap(),
         };
 
         unsafe { self.device.retain(); }
@@ -294,4 +323,5 @@ impl core::Resources for Resources {
 pub struct Share {
     capabilities: core::Capabilities,
     handles: RefCell<handle::Manager<Resources>>,
+    feature_set: MTLFeatureSet,
 }
