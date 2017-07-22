@@ -119,9 +119,10 @@ impl core::Adapter<Backend> for Adapter {
             macOS_GPUFamily1_v1,
             macOS_GPUFamily1_v2,
             macOS_GPUFamily1_v3,
-        ].into_iter()
+        ].iter()
          .rev()
-         .find(|&&f| self.device.supports_feature_set(f));
+         .cloned()
+         .find(|&f| self.device.supports_feature_set(f));
 
         let share = Share {
             capabilities: core::Capabilities {
@@ -138,7 +139,7 @@ impl core::Adapter<Backend> for Adapter {
                 copy_buffer_supported: true,
             },
             handles: RefCell::new(handle::Manager::new()),
-            feature_set: *feature_set.unwrap(),
+            feature_set: feature_set.unwrap(),
         };
 
         unsafe { self.device.retain(); }
