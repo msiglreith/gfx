@@ -55,7 +55,7 @@ pub type ColorFormat = gfx::format::Rgba8;
 pub type ColorFormat = (gfx::format::B8_G8_R8_A8, gfx::format::Srgb);
 
 #[cfg(feature = "metal")]
-pub type DepthFormat = gfx::format::Depth32F;
+pub type DepthFormat = (gfx::format::D32_S8, gfx::format::Float);
 #[cfg(not(feature = "metal"))]
 pub type DepthFormat = gfx::format::DepthStencil;
 
