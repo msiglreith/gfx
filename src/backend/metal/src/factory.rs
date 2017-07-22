@@ -96,6 +96,7 @@ impl Factory {
             iOS_GPUFamily3_v3 |
             tvOS_GPUFamily1_v3 | // TODO: not enlisted?
             macOS_GPUFamily1_v3 => 20,
+            _ => unreachable!(),
         }
     }
 
