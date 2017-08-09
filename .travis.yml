@@ -11,11 +11,6 @@ rust:
 os:
   - linux
   - osx
-branches:
-  only:
-    - staging
-    - trying
-    - master
 
 
 before_install:
