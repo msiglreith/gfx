@@ -10,7 +10,7 @@ rust:
 #  - nightly
 os:
   - linux
-#  - osx
+  - osx
 branches:
   only:
     - staging
@@ -37,6 +37,7 @@ addons:
       - libxcursor1
       - libglfw-dev
       - libosmesa6-dev
+      - libxrandr-dev
 
 script:
   - bash scripts/travis-script.sh
