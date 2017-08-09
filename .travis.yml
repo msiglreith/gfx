@@ -5,6 +5,8 @@ cache:
   directories:
    - $HOME/deps
 
+dist: trusty
+
 rust:
   - stable
 #  - nightly
