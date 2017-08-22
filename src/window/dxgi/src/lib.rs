@@ -92,10 +92,10 @@ pub struct Surface11 {
 }
 
 impl core::Surface<device_dx11::Backend> for Surface11 {
-    type SwapChain = SwapChain11;
+    type Swapchain = Swapchain11;
 
     fn supports_queue(&self, _: &device_dx11::QueueFamily) -> bool { true }
-    fn build_swapchain<Q>(&mut self, config: core::SwapchainConfig, present_queue: &Q) -> SwapChain11
+    fn build_swapchain<Q>(&mut self, config: core::SwapchainConfig, present_queue: &Q) -> Swapchain11
         where Q: AsRef<device_dx11::CommandQueue>
     {
         use core::handle::Producer;
@@ -104,7 +104,7 @@ impl core::Surface<device_dx11::Backend> for Surface11 {
         let dim = get_window_dimensions(&self.window);
 
         let mut swap_chain = {
-            let mut swap_chain: *mut winapi::IDXGISwapChain1 = ptr::null_mut();
+            let mut swap_chain: *mut winapi::IDXGISwapchain1 = ptr::null_mut();
             let buffer_count = 2; // TODO: user-defined value
 
             // TODO: double-check values
@@ -126,7 +126,7 @@ impl core::Surface<device_dx11::Backend> for Surface11 {
             };
 
             let hr = unsafe {
-                self.factory.as_mut().CreateSwapChainForHwnd(
+                self.factory.as_mut().CreateSwapchainForHwnd(
                     present_queue.device.as_mut() as *mut _ as *mut winapi::IUnknown,
                     self.window.get_hwnd() as *mut _,
                     &desc,
@@ -212,7 +212,7 @@ impl core::Surface<device_dx11::Backend> for Surface11 {
 
         };
 
-        SwapChain11 {
+        Swapchain11 {
             swap_chain,
             images: [backbuffer],
         }
@@ -228,14 +228,14 @@ pub struct Surface12 {
 }
 
 impl core::Surface<device_dx12::Backend> for Surface12 {
-    type SwapChain = SwapChain12;
+    type Swapchain = Swapchain12;
 
     fn supports_queue(&self, _: &device_dx12::QueueFamily) -> bool { true }
-    fn build_swapchain<Q>(&mut self, config: core::SwapchainConfig, present_queue: &Q) -> SwapChain12
+    fn build_swapchain<Q>(&mut self, config: core::SwapchainConfig, present_queue: &Q) -> Swapchain12
         where Q: AsRef<device_dx12::CommandQueue>
     {
         use core::handle::Producer;
-        let mut swap_chain: *mut winapi::IDXGISwapChain1 = ptr::null_mut();
+        let mut swap_chain: *mut winapi::IDXGISwapchain1 = ptr::null_mut();
         let buffer_count = 2; // TODO: user-defined value
 
         // TODO: double-check values
@@ -257,7 +257,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
         };
 
         let hr = unsafe {
-            self.factory.CreateSwapChainForHwnd(
+            self.factory.CreateSwapchainForHwnd(
                 present_queue.as_ref().raw.as_mut() as *mut _ as *mut winapi::IUnknown,
                 self.wnd_handle,
                 &desc,
@@ -271,7 +271,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
             error!("error on swapchain creation {:x}", hr);
         }
 
-        let mut swap_chain = unsafe { ComPtr::<winapi::IDXGISwapChain3>::new(swap_chain as *mut winapi::IDXGISwapChain3) };
+        let mut swap_chain = unsafe { ComPtr::<winapi::IDXGISwapchain3>::new(swap_chain as *mut winapi::IDXGISwapchain3) };
 
         // Get backbuffer images
         let backbuffers = (0..buffer_count).map(|i| {
@@ -310,7 +310,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
             (color_tex, ds_tex)
         }).collect::<Vec<_>>();
 
-        SwapChain12 {
+        Swapchain12 {
             inner: swap_chain,
             next_frame: 0,
             frame_queue: VecDeque::new(),
@@ -319,12 +319,12 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
     }
 }
 
-pub struct SwapChain11 {
-    swap_chain: ComPtr<winapi::IDXGISwapChain1>,
+pub struct Swapchain11 {
+    swap_chain: ComPtr<winapi::IDXGISwapchain1>,
     images: [core::Backbuffer<device_dx11::Backend>; 1],
 }
 
-impl core::SwapChain<device_dx11::Backend> for SwapChain11 {
+impl core::Swapchain<device_dx11::Backend> for Swapchain11 {
     fn get_backbuffers(&mut self) -> &[core::Backbuffer<device_dx11::Backend>] {
         &self.images
     }
@@ -342,14 +342,14 @@ impl core::SwapChain<device_dx11::Backend> for SwapChain11 {
     }
 }
 
-pub struct SwapChain12 {
-    inner: ComPtr<winapi::IDXGISwapChain3>,
+pub struct Swapchain12 {
+    inner: ComPtr<winapi::IDXGISwapchain3>,
     next_frame: usize,
     frame_queue: VecDeque<usize>,
     images: Vec<core::Backbuffer<device_dx12::Backend>>,
 }
 
-impl core::SwapChain<device_dx12::Backend> for SwapChain12 {
+impl core::Swapchain<device_dx12::Backend> for Swapchain12 {
     fn get_backbuffers(&mut self) -> &[core::Backbuffer<device_dx12::Backend>] {
         &self.images
     }

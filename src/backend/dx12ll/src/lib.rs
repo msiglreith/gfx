@@ -284,16 +284,16 @@ pub struct Surface {
 
 impl core::Surface for Surface {
     type Queue = CommandQueue;
-    type SwapChain = SwapChain;
+    type Swapchain = Swapchain;
 
-    fn build_swapchain<T: core::format::RenderFormat>(&self, present_queue: &CommandQueue) -> SwapChain {
-        let mut swap_chain = ComPtr::<winapi::IDXGISwapChain1>::new(ptr::null_mut());
+    fn build_swapchain<T: core::format::RenderFormat>(&self, present_queue: &CommandQueue) -> Swapchain {
+        let mut swap_chain = ComPtr::<winapi::IDXGISwapchain1>::new(ptr::null_mut());
         let buffer_count = 2; // TODO: user-defined value
         let mut format = T::get_format();
         if format.1 == core::format::ChannelType::Srgb {
             // Apparently, swap chain doesn't like sRGB, but the RTV can still have some:
             // https://www.gamedev.net/forums/topic/670546-d3d12srgb-buffer-format-for-swap-chain/
-            // [15716] DXGI ERROR: IDXGIFactory::CreateSwapChain: Flip model swapchains (DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL and DXGI_SWAP_EFFECT_FLIP_DISCARD) only support the following Formats: (DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R10G10B10A2_UNORM), assuming the underlying Device does as well.
+            // [15716] DXGI ERROR: IDXGIFactory::CreateSwapchain: Flip model swapchains (DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL and DXGI_SWAP_EFFECT_FLIP_DISCARD) only support the following Formats: (DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R10G10B10A2_UNORM), assuming the underlying Device does as well.
             format.1 = core::format::ChannelType::Unorm;
         }
         let dxgi_format = state::map_format(format, true).unwrap();
@@ -317,7 +317,7 @@ impl core::Surface for Surface {
         };
 
         let hr = unsafe {
-            self.factory.clone().CreateSwapChainForHwnd(
+            self.factory.clone().CreateSwapchainForHwnd(
                 present_queue.inner.as_mut_ptr() as *mut _ as *mut winapi::IUnknown,
                 self.wnd_handle,
                 &desc,
@@ -331,9 +331,9 @@ impl core::Surface for Surface {
             panic!("error on swapchain creation {:x}", hr);
         }
 
-        let mut swap_chain3 = ComPtr::<winapi::IDXGISwapChain3>::new(ptr::null_mut());
+        let mut swap_chain3 = ComPtr::<winapi::IDXGISwapchain3>::new(ptr::null_mut());
         assert_eq!(winapi::S_OK, unsafe {
-            swap_chain.QueryInterface(&dxguid::IID_IDXGISwapChain3,
+            swap_chain.QueryInterface(&dxguid::IID_IDXGISwapchain3,
                 swap_chain3.as_mut() as *mut *mut _ as *mut *mut c_void)
         });
 
@@ -352,7 +352,7 @@ impl core::Surface for Surface {
             native::Image { resource, kind, dxgi_format, bits_per_texel }
         }).collect::<Vec<_>>();
 
-        SwapChain {
+        Swapchain {
             inner: swap_chain3,
             next_frame: 0,
             frame_queue: VecDeque::new(),
@@ -361,14 +361,14 @@ impl core::Surface for Surface {
     }
 }
 
-pub struct SwapChain {
-    inner: ComPtr<winapi::IDXGISwapChain3>,
+pub struct Swapchain {
+    inner: ComPtr<winapi::IDXGISwapchain3>,
     next_frame: usize,
     frame_queue: VecDeque<usize>,
     images: Vec<native::Image>,
 }
 
-impl<'a> core::SwapChain for SwapChain {
+impl<'a> core::Swapchain for Swapchain {
     type R = Resources;
     type Image = native::Image;
 
@@ -518,7 +518,7 @@ impl core::Backend for Backend {
     type Adapter = Adapter;
     type Resources = Resources;
     type Surface = Surface;
-    type SwapChain = SwapChain;
+    type Swapchain = Swapchain;
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
