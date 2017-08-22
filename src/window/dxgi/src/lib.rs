@@ -104,7 +104,7 @@ impl core::Surface<device_dx11::Backend> for Surface11 {
         let dim = get_window_dimensions(&self.window);
 
         let mut swap_chain = {
-            let mut swap_chain: *mut winapi::IDXGISwapchain1 = ptr::null_mut();
+            let mut swap_chain: *mut winapi::IDXGISwapChain1 = ptr::null_mut();
             let buffer_count = 2; // TODO: user-defined value
 
             // TODO: double-check values
@@ -126,7 +126,7 @@ impl core::Surface<device_dx11::Backend> for Surface11 {
             };
 
             let hr = unsafe {
-                self.factory.as_mut().CreateSwapchainForHwnd(
+                self.factory.as_mut().CreateSwapChainForHwnd(
                     present_queue.device.as_mut() as *mut _ as *mut winapi::IUnknown,
                     self.window.get_hwnd() as *mut _,
                     &desc,
@@ -235,7 +235,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
         where Q: AsRef<device_dx12::CommandQueue>
     {
         use core::handle::Producer;
-        let mut swap_chain: *mut winapi::IDXGISwapchain1 = ptr::null_mut();
+        let mut swap_chain: *mut winapi::IDXGISwapChain1 = ptr::null_mut();
         let buffer_count = 2; // TODO: user-defined value
 
         // TODO: double-check values
@@ -257,7 +257,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
         };
 
         let hr = unsafe {
-            self.factory.CreateSwapchainForHwnd(
+            self.factory.CreateSwapChainForHwnd(
                 present_queue.as_ref().raw.as_mut() as *mut _ as *mut winapi::IUnknown,
                 self.wnd_handle,
                 &desc,
@@ -271,7 +271,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
             error!("error on swapchain creation {:x}", hr);
         }
 
-        let mut swap_chain = unsafe { ComPtr::<winapi::IDXGISwapchain3>::new(swap_chain as *mut winapi::IDXGISwapchain3) };
+        let mut swap_chain = unsafe { ComPtr::<winapi::IDXGISwapChain3>::new(swap_chain as *mut winapi::IDXGISwapChain3) };
 
         // Get backbuffer images
         let backbuffers = (0..buffer_count).map(|i| {
@@ -320,7 +320,7 @@ impl core::Surface<device_dx12::Backend> for Surface12 {
 }
 
 pub struct Swapchain11 {
-    swap_chain: ComPtr<winapi::IDXGISwapchain1>,
+    swap_chain: ComPtr<winapi::IDXGISwapChain1>,
     images: [core::Backbuffer<device_dx11::Backend>; 1],
 }
 
@@ -343,7 +343,7 @@ impl core::Swapchain<device_dx11::Backend> for Swapchain11 {
 }
 
 pub struct Swapchain12 {
-    inner: ComPtr<winapi::IDXGISwapchain3>,
+    inner: ComPtr<winapi::IDXGISwapChain3>,
     next_frame: usize,
     frame_queue: VecDeque<usize>,
     images: Vec<core::Backbuffer<device_dx12::Backend>>,

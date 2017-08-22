@@ -287,7 +287,7 @@ impl core::Surface for Surface {
     type Swapchain = Swapchain;
 
     fn build_swapchain<T: core::format::RenderFormat>(&self, present_queue: &CommandQueue) -> Swapchain {
-        let mut swap_chain = ComPtr::<winapi::IDXGISwapchain1>::new(ptr::null_mut());
+        let mut swap_chain = ComPtr::<winapi::IDXGISwapChain1>::new(ptr::null_mut());
         let buffer_count = 2; // TODO: user-defined value
         let mut format = T::get_format();
         if format.1 == core::format::ChannelType::Srgb {
@@ -317,7 +317,7 @@ impl core::Surface for Surface {
         };
 
         let hr = unsafe {
-            self.factory.clone().CreateSwapchainForHwnd(
+            self.factory.clone().CreateSwapChainForHwnd(
                 present_queue.inner.as_mut_ptr() as *mut _ as *mut winapi::IUnknown,
                 self.wnd_handle,
                 &desc,
@@ -331,9 +331,9 @@ impl core::Surface for Surface {
             panic!("error on swapchain creation {:x}", hr);
         }
 
-        let mut swap_chain3 = ComPtr::<winapi::IDXGISwapchain3>::new(ptr::null_mut());
+        let mut swap_chain3 = ComPtr::<winapi::IDXGISwapChain3>::new(ptr::null_mut());
         assert_eq!(winapi::S_OK, unsafe {
-            swap_chain.QueryInterface(&dxguid::IID_IDXGISwapchain3,
+            swap_chain.QueryInterface(&dxguid::IID_IDXGISwapChain3,
                 swap_chain3.as_mut() as *mut *mut _ as *mut *mut c_void)
         });
 
@@ -362,7 +362,7 @@ impl core::Surface for Surface {
 }
 
 pub struct Swapchain {
-    inner: ComPtr<winapi::IDXGISwapchain3>,
+    inner: ComPtr<winapi::IDXGISwapChain3>,
     next_frame: usize,
     frame_queue: VecDeque<usize>,
     images: Vec<native::Image>,
