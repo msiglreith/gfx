@@ -299,8 +299,11 @@ pub struct Gpu<B: Backend> {
     /// Transfer command queues.
     pub transfer_queues: Vec<CommandQueue<B, Transfer>>,
     /// Types of memory heaps.
+    ///
+    /// Each heap type is associated with one heap of `memory_heaps`.
+    /// Multiple types can point to the same heap.
     pub heap_types: Vec<HeapType>,
-    /// Memory heaps.
+    /// Memory heaps with their size in bytes.
     pub memory_heaps: Vec<u64>,
 }
 
