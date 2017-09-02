@@ -7,17 +7,17 @@
 //! extern crate glutin;
 //! extern crate gfx_device_gl;
 //! extern crate gfx_window_glutin;
-//! 
+//!
 //! fn main() {
 //!     use gfx_window_glutin::Window;
 //!     use glutin::{EventsLoop, WindowBuilder, ContextBuilder, GlWindow};
-//! 
+//!
 //!     // First create a window using glutin.
 //!     let mut events_loop = EventsLoop::new();
 //!     let wb = WindowBuilder::new();
 //!     let cb = ContextBuilder::new().with_vsync(true);
 //!     let glutin_window = GlWindow::new(wb, cb, &events_loop).unwrap();
-//! 
+//!
 //!     // Then use the glutin window to create a gfx window.
 //!     let window = Window::new(glutin_window);
 //! }
@@ -28,23 +28,21 @@ extern crate gfx_core as core;
 extern crate gfx_device_gl as device_gl;
 extern crate glutin;
 
-#[cfg(feature = "headless")]
 pub use headless::Headless;
 
-use core::{format, handle, texture};
+use core::{format, image};
 use core::memory;
 use device_gl::{native as n, Backend as B};
 use glutin::GlContext;
 use std::rc::Rc;
 
-#[cfg(feature = "headless")]
 mod headless;
 
-fn get_window_dimensions(window: &glutin::GlWindow) -> texture::Dimensions {
+fn get_window_dimensions(window: &glutin::GlWindow) -> image::Dimensions {
     let (width, height) = window.get_inner_size().unwrap();
     let aa = window.get_pixel_format().multisampling
-                   .unwrap_or(0) as texture::NumSamples;
-    ((width as f32 * window.hidpi_factor()) as texture::Size, (height as f32 * window.hidpi_factor()) as texture::Size, 1, aa.into())
+                   .unwrap_or(0) as image::NumSamples;
+    ((width as f32 * window.hidpi_factor()) as image::Size, (height as f32 * window.hidpi_factor()) as image::Size, 1, aa.into())
 }
 
 /*
@@ -64,7 +62,7 @@ where
 }
 
 /// Return new main target views if the window resolution has changed from the old dimensions.
-pub fn update_views_raw(window: &glutin::GlWindow, old_dimensions: texture::Dimensions,
+pub fn update_views_raw(window: &glutin::GlWindow, old_dimensions: image::Dimensions,
                         color_format: format::Format, ds_format: format::Format)
                         -> Option<(handle::RawRenderTargetView<R>, handle::RawDepthStencilView<R>)>
 {
@@ -84,7 +82,7 @@ pub struct Swapchain {
     backbuffer: [core::Backbuffer<B>; 1],
 }
 
-impl core::Swapchain<B> for SwapChain {
+impl core::Swapchain<B> for Swapchain {
     fn get_backbuffers(&mut self) -> &[core::Backbuffer<B>] {
         &self.backbuffer
     }
@@ -94,54 +92,37 @@ impl core::Swapchain<B> for SwapChain {
         core::Frame::new(0)
     }
 
-    fn present<Q>(&mut self, _: &mut Q, _: &[&handle::Semaphore<B>])
-        where Q: AsMut<device_gl::CommandQueue>
-    {
+    fn present<C>(
+        &mut self,
+        _: &mut core::CommandQueue<B, C>,
+        _: &[&n::Semaphore],
+    ) {
         self.window.swap_buffers();
     }
 }
 
 pub struct Surface {
     window: Rc<glutin::GlWindow>,
-    manager: handle::Manager<B>,
 }
 
 impl core::Surface<B> for Surface {
     type Swapchain = Swapchain;
 
     fn supports_queue(&self, _: &device_gl::QueueFamily) -> bool { true }
-    fn build_swapchain<Q>(&mut self, config: core::SwapchainConfig, present_queue: &Q) -> Swapchain
-        where Q: AsRef<device_gl::CommandQueue>
-    {
-        use core::handle::Producer;
-        let dim = get_window_dimensions(&self.window);
-        let color = self.manager.make_image(
-            n::Image::Surface(0),
-            texture::Info {
-                levels: 1,
-                kind: texture::Kind::D2(dim.0, dim.1, dim.3),
-                format: config.color_format.0,
-                bind: memory::RENDER_TARGET | memory::TRANSFER_SRC,
-                usage: memory::Usage::Data,
-            },
-        );
-
-        let ds = config.depth_stencil_format.map(|ds_format| {
-            self.manager.make_image(
-                n::Image::Surface(0),
-                texture::Info {
-                    levels: 1,
-                    kind: texture::Kind::D2(dim.0, dim.1, dim.3),
-                    format: ds_format.0,
-                    bind: memory::DEPTH_STENCIL | memory::TRANSFER_SRC,
-                    usage: memory::Usage::Data,
-                },
-            )
-        });
+    fn build_swapchain<C>(
+        &mut self,
+        config: core::SwapchainConfig,
+        present_queue: &core::CommandQueue<B, C>,
+    ) -> Self::Swapchain {
+        let backbuffer = core::Backbuffer {
+            color: n::Image::Surface(0),
+            depth_stencil: config.depth_stencil_format
+                                 .map(|_| n::Image::Surface(0)),
+        };
 
         Swapchain {
             window: self.window.clone(),
-            backbuffer: [(color, ds); 1],
+            backbuffer: [backbuffer],
         }
     }
 }
@@ -150,8 +131,9 @@ pub struct Window(Rc<glutin::GlWindow>);
 
 pub fn config_context(
     builder: glutin::ContextBuilder,
-    color_format: format::Format, ds_format: format::Format) -> glutin::ContextBuilder
-{
+    color_format: format::Format,
+    ds_format: format::Format,
+) -> glutin::ContextBuilder {
     let color_total_bits = color_format.0.get_total_bits();
     let alpha_bits = color_format.0.get_alpha_stencil_bits();
     let depth_total_bits = ds_format.0.get_total_bits();
@@ -183,7 +165,6 @@ impl core::WindowExt<B> for Window {
         let adapter = device_gl::Adapter::new(|s| self.0.get_proc_address(s) as *const std::os::raw::c_void);
         let surface = Surface {
             window: self.0.clone(),
-            manager: handle::Manager::new(),
         };
 
         (surface, vec![adapter])
