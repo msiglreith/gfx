@@ -1,21 +1,29 @@
 extern crate env_logger;
 extern crate gfx_core as core;
+
+#[cfg(feature = "gl")]
+extern crate gfx_device_gl as back;
 #[cfg(feature = "dx12")]
 extern crate gfx_device_dx12 as back;
 #[cfg(feature = "vulkan")]
 extern crate gfx_device_vulkan as back;
-#[cfg(feature = "vulkan")]
-extern crate gfx_window_vulkan as win;
 #[cfg(feature = "metal")]
 extern crate gfx_device_metal as back;
 
+#[cfg(feature = "gl")]
+extern crate gfx_window_glutin as win;
+#[cfg(feature = "vulkan")]
+extern crate gfx_window_vulkan as win;
+
+#[cfg(feature = "gl")]
+extern crate glutin;
 extern crate winit;
 extern crate image;
 
 use core::{buffer, command, device as d, image as i, memory as m, pass, pso, pool, state};
 use core::{Adapter, Device, QueueFamily, Swapchain, WindowExt};
 use core::{DescriptorPool, Gpu, FrameSync, Primitive, Surface, SwapchainConfig};
-use core::format::{Formatted, Srgba8 as ColorFormat, Vec2};
+use core::format::{self, Formatted, Srgba8 as ColorFormat, Vec2};
 use core::pass::SubPass;
 use core::queue::Submission;
 use core::target::Rect;
@@ -43,22 +51,47 @@ const QUAD: [Vertex; 6] = [
     Vertex { a_Pos: [ -0.5,-0.33 ], a_Uv: [0.0, 0.0] },
 ];
 
+#[cfg(feature = "gl")]
+fn create_window(events_loop: &winit::EventsLoop) -> glutin::GlWindow {
+    let gl_version = glutin::GlRequest::Latest;
+    let color_format = ColorFormat::get_format();
+    let color_total_bits = color_format.0.get_total_bits();
+    let alpha_bits = color_format.0.get_alpha_stencil_bits();
+
+    let builder = glutin::ContextBuilder::new()
+                    .with_gl(gl_version)
+                    .with_vsync(true)
+                    .with_pixel_format(color_total_bits - alpha_bits, alpha_bits)
+                    .with_srgb(color_format.1 == format::ChannelType::Srgb);
+
+    let wb = glutin::WindowBuilder::new()
+                    .with_dimensions(1024, 768)
+                    .with_title("quad".to_string());
+
+    glutin::GlWindow::new(wb, builder, &events_loop).unwrap()
+}
+
 #[cfg(any(feature = "vulkan", feature = "dx12", feature = "metal"))]
-fn main() {
-    env_logger::init().unwrap();
-    let mut events_loop = winit::EventsLoop::new();
-    let window = winit::WindowBuilder::new()
+fn create_window(events_loop: &winit::EventsLoop) -> glutin::Window {
+    glutin::WindowBuilder::new()
         .with_dimensions(1024, 768)
         .with_title("quad".to_string())
         .build(&events_loop)
-        .unwrap();
+        .unwrap()
+}
+
+#[cfg(any(feature = "gl", feature = "vulkan", feature = "dx12", feature = "metal"))]
+fn main() {
+    env_logger::init().unwrap();
+    let mut events_loop = winit::EventsLoop::new();
+    let window = create_window(&events_loop);
     let window_size = window.get_inner_size_pixels().unwrap();
     let pixel_width = window_size.0 as u16;
     let pixel_height = window_size.1 as u16;
 
     // instantiate backend
-    let mut vk_window = win::Window(window);
-    let (mut surface, adapters) = vk_window.get_surface_and_adapters();
+    let mut window = win::Window::new(window);
+    let (mut surface, adapters) = window.get_surface_and_adapters();
     for adapter in &adapters {
         println!("{:?}", adapter.get_info());
     }
@@ -195,6 +228,9 @@ fn main() {
             offset: 8
         },
     });
+
+    #[cfg(feature = "gl")]
+    let shader_lib = return; // TODO
 
     //
     let pipelines = device.create_graphics_pipelines(&[
@@ -474,7 +510,7 @@ fn main() {
     }
 }
 
-#[cfg(not(any(feature = "vulkan", feature = "dx12", feature = "metal")))]
+#[cfg(not(any(feature = "gl", feature = "vulkan", feature = "dx12", feature = "metal")))]
 fn main() {
-    println!("You need to enable the native API feature (vulkan/metal) in order to test the LL");
+    println!("You need to enable the native API feature (vulkan/dx12/metal/gl) in order to test the LL");
 }
