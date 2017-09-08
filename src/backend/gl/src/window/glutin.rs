@@ -28,12 +28,13 @@
 //! ```no_run
 //! extern crate glutin;
 //! extern crate gfx_backend_gl;
+//! extern crate gfx_core as core;
+//!
+//! use core::Instance;
+//! use gfx_backend_gl::Headless;
+//! use glutin::{HeadlessRendererBuilder};
 //!
 //! fn main() {
-//!     use core::Instance;
-//!     use gfx_backend_gl::Headless;
-//!     use glutin::{HeadlessRendererBuilder};
-//!
 //!     let context = HeadlessRendererBuilder::new(256, 256)
 //!         .build()
 //!         .expect("Failed to build headless context");
