@@ -21,6 +21,7 @@
 //!     // Then use the glutin window to create a gfx surface.
 //!     let surface = Surface::from_window(glutin_window);
 //! }
+//! ```
 //!
 //! Headless initialization without a window.
 //!
