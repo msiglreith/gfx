@@ -16,5 +16,6 @@ members = [
     #"src/window/sdl",
     #"examples",
     "examples/hal/quad",
+    "examples/hal/ocean",
     "examples/render/quad_render",
 ]
