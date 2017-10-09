@@ -1,0 +1,33 @@
+[package]
+name = "ocean"
+version = "0.1.0"
+publish = false
+workspace = "../../.."
+
+[features]
+default = []
+dx12 = ["gfx_backend_dx12"]
+vulkan = ["gfx_backend_vulkan"]
+
+[[bin]]
+name = "ocean"
+path = "main.rs"
+
+[dependencies]
+env_logger = "0.4"
+log = "0.3"
+winit = "0.7"
+gfx_core = { path = "../../../src/core", version = "0.10" }
+cgmath = "0.15"
+time = "0.1.38"
+panopaea = { git = "https://github.com/msiglreith/panopaea.git" , rev = "e958e5f" }
+
+[dependencies.gfx_backend_vulkan]
+path = "../../../src/backend/vulkan"
+version = "0.1"
+optional = true
+features = ["glsl-to-spirv"]
+
+[target.'cfg(windows)'.dependencies]
+gfx_backend_dx12 = { path = "../../../src/backend/dx12", version = "0.1", optional = true }
+
