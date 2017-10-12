@@ -61,8 +61,6 @@ bitflags!(
         const INDIRECT = 0x10,
         ///
         const VERTEX = 0x20,
-        ///
-        const STORAGE = 0x40,
     }
 );
 

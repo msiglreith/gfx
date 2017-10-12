@@ -5,7 +5,6 @@ use std::ops::Range;
 
 use {Backend};
 use image::ImageLayout;
-use std::ops::Range;
 use super::ShaderStageFlags;
 
 ///
@@ -88,12 +87,6 @@ pub struct DescriptorSetWrite<'a, 'b, B: Backend> {
     pub binding: usize,
     pub array_offset: usize,
     pub write: DescriptorWrite<'b, B>,
-}
-
-#[allow(missing_docs)] //TODO
-pub struct DescriptorBufferInfo<'a, B: Backend> {
-    pub buffer: &'a B::Buffer,
-    pub range: Range<u64>,
 }
 
 #[allow(missing_docs)] //TODO

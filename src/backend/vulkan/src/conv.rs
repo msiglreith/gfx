@@ -462,9 +462,6 @@ pub fn map_buffer_usage(usage: buffer::Usage) -> vk::BufferUsageFlags {
     if usage.contains(buffer::VERTEX) {
         flags |= vk::BUFFER_USAGE_VERTEX_BUFFER_BIT;
     }
-    if usage.contains(buffer::STORAGE) {
-        flags |= vk::BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    }
 
     flags
 }

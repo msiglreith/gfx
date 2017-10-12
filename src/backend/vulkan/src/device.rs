@@ -20,29 +20,6 @@ pub struct UnboundBuffer(n::Buffer);
 pub struct UnboundImage(n::Image);
 
 impl Device {
-    fn create_buffer_view(&mut self, buffer: &n::Buffer, format: format::Format, range: Range<u64>) -> vk::BufferView {
-        let info = vk::BufferViewCreateInfo {
-            s_type: vk::StructureType::BufferViewCreateInfo,
-            p_next: ptr::null(),
-            flags: vk::BufferViewCreateFlags::empty(),
-            buffer: buffer.raw,
-            format: conv::map_format(format.0, format.1).unwrap(), // TODO
-            offset: range.start,
-            range: range.end - range.start,
-        };
-
-        unsafe {
-            let mut buffer_view = mem::uninitialized();
-            self.raw.0.fp_v1_0().create_buffer_view(
-                self.raw.0.handle(),
-                &info,
-                ptr::null(),
-                &mut buffer_view,
-            );
-            buffer_view
-        }
-    }
-
     #[cfg(feature = "glsl-to-spirv")]
     pub fn create_shader_module_from_glsl(
         &mut self,
@@ -970,24 +947,12 @@ impl d::Device<B> for Device {
                 }
 
                 pso::DescriptorWrite::SampledImage(ref images) |
+                pso::DescriptorWrite::StorageImage(ref images) |
                 pso::DescriptorWrite::InputAttachment(ref images) => {
                     for &(ref view, layout) in images {
                         image_infos.push(vk::DescriptorImageInfo {
                             sampler: vk::Sampler::null(),
                             image_view: view.view,
-                            image_layout: conv::map_image_layout(layout),
-                        });
-                    }
-                }
-
-                pso::DescriptorWrite::StorageImage(ref images) => {
-                    for &(uav, layout) in images {
-                        let view = if let n::UnorderedAccessView::Image(view) = *uav { view }
-                                    else { panic!("Wrong unordered access view (expected image)") }; // TODO
-
-                        image_infos.push(vk::DescriptorImageInfo {
-                            sampler: vk::Sampler::null(),
-                            image_view: view,
                             image_layout: conv::map_image_layout(layout),
                         });
                     }
@@ -999,16 +964,6 @@ impl d::Device<B> for Device {
                             buffer: buffer.raw,
                             offset: range.start,
                             range: range.end - range.start,
-                        });
-                    }
-                }
-
-                pso::DescriptorWrite::StorageBuffer(ref buffers) => {
-                    for buffer in buffers {
-                        buffer_infos.push(vk::DescriptorBufferInfo {
-                            buffer: buffer.buffer.raw,
-                            offset: buffer.range.start,
-                            range: buffer.range.end - buffer.range.start,
                         });
                     }
                 }
@@ -1057,13 +1012,6 @@ impl d::Device<B> for Device {
 
                     (vk::DescriptorType::InputAttachment, images.len(),
                         info_ptr, ptr::null(), ptr::null())
-                }
-                pso::DescriptorWrite::StorageBuffer(ref infos) => {
-                    let info_ptr = &buffer_infos[cur_buffer_index] as *const _;
-                    cur_buffer_index += infos.len();
-
-                    (vk::DescriptorType::StorageBuffer, infos.len(),
-                        ptr::null(), info_ptr, ptr::null())
                 }
                 _ => unimplemented!(), // TODO
             };

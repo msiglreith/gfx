@@ -544,27 +544,6 @@ impl com::RawCommandBuffer<Backend> for CommandBuffer {
         );
     }
 
-    fn bind_compute_descriptor_sets(
-        &mut self,
-        layout: &n::PipelineLayout,
-        first_set: usize,
-        sets: &[&n::DescriptorSet],
-    ) {
-        let sets: SmallVec<[vk::DescriptorSet; 16]> = sets.iter().map(|set| set.raw).collect();
-        let dynamic_offsets = &[]; // TODO
-
-        unsafe {
-            self.device.0.cmd_bind_descriptor_sets(
-                self.raw,
-                vk::PipelineBindPoint::Compute,
-                layout.raw,
-                first_set as u32,
-                &sets,
-                dynamic_offsets,
-            );
-        }
-    }
-
     fn bind_compute_pipeline(&mut self, pipeline: &n::ComputePipeline) {
         unsafe {
             self.device.0.cmd_bind_pipeline(

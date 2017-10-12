@@ -389,8 +389,7 @@ impl core::Adapter<Backend> for Adapter {
                 .map(|s| s.as_ptr())
                 .collect::<Vec<_>>();
 
-            let mut features: vk::PhysicalDeviceFeatures = unsafe { mem::zeroed() };
-
+            let features = unsafe { mem::zeroed() };
             let info = vk::DeviceCreateInfo {
                 s_type: vk::StructureType::DeviceCreateInfo,
                 p_next: ptr::null(),
