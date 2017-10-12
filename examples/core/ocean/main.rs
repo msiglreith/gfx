@@ -15,11 +15,10 @@ use core::{
     Adapter, Device, FrameSync, Gpu, Instance, QueueType, Submission, Surface,
     DescriptorPool, IndexType, Primitive, Swapchain, SwapchainConfig, Backbuffer};
 use core::command::{ClearColor, ClearValue};
-use core::format::{self, Format, Formatted, Srgba8 as ColorFormat, Vec2, Vec3};
+use core::format::{self, Format, Formatted, Srgba8 as ColorFormat, Swizzle, Vec2, Vec3};
 use core::target::Rect;
 
 use panopaea::ocean::empirical;
-use cgmath::{Matrix4, Point3, Vector3};
 use ocean::{CorrectionLocals, PropagateLocals};
 
 mod camera;
@@ -45,8 +44,13 @@ struct Locals {
 }
 
 const RESOLUTION: usize = 512;
-
 const HALF_RESOLUTION: usize = 128;
+
+const COLOR_RANGE: i::SubresourceRange = i::SubresourceRange {
+    aspects: i::ASPECT_COLOR,
+    levels: 0 .. 1,
+    layers: 0 .. 1,
+};
 
 #[cfg(any(feature = "vulkan", feature = "dx12"))]
 fn main() {
@@ -100,7 +104,7 @@ fn main() {
             images
                 .into_iter()
                 .map(|image| {
-                    let rtv = device.view_image_as_render_target(&image, ColorFormat::get_format(), (0, 0..1)).unwrap();
+                    let rtv = device.create_image_view(&image, ColorFormat::SELF, Swizzle::NO, COLOR_RANGE).unwrap();
                     (image, rtv)
                 })
                 .collect::<Vec<_>>()
@@ -122,6 +126,23 @@ fn main() {
         .create_shader_module_from_glsl(
             include_str!("shader/ocean.frag"),
             pso::Stage::Fragment,
+        ).unwrap();
+
+    #[cfg(feature = "dx12")]
+    let vs_ocean = device
+        .create_shader_module_from_source(
+            pso::Stage::Vertex,
+            "", // TODO
+            "main",
+            include_bytes!("shader/ocean.hlsl"),
+        ).unwrap();
+    #[cfg(feature = "dx12")]
+    let fs_ocean = device
+        .create_shader_module_from_source(
+            pso::Stage::Fragment,
+            "", // TODO
+            "main",
+            include_bytes!("shader/ocean.hlsl"),
         ).unwrap();
 
     let fft = fft::Fft::init(&mut device);
@@ -153,16 +174,17 @@ fn main() {
     let ocean_layout = device.create_pipeline_layout(&[&set_layout]);
     let ocean_pass = {
         let attachment = pass::Attachment {
-            format: ColorFormat::get_format(),
+            format: ColorFormat::SELF,
             ops: pass::AttachmentOps::new(pass::AttachmentLoadOp::Clear, pass::AttachmentStoreOp::Store),
             stencil_ops: pass::AttachmentOps::DONT_CARE,
             layouts: i::ImageLayout::Undefined .. i::ImageLayout::Present,
         };
 
         let subpass = pass::SubpassDesc {
-            color_attachments: &[(0, i::ImageLayout::ColorAttachmentOptimal)],
-            input_attachments: &[],
-            preserve_attachments: &[],
+            colors: &[(0, i::ImageLayout::ColorAttachmentOptimal)],
+            depth_stencil: None,
+            inputs: &[],
+            preserves: &[],
         };
 
         device.create_renderpass(&[attachment], &[subpass], &[])
@@ -172,7 +194,7 @@ fn main() {
     let ocean_framebuffers = frame_images
         .iter()
         .map(|&(_, ref rtv)| {
-            device.create_framebuffer(&ocean_pass, &[rtv], &[], extent).unwrap()
+            device.create_framebuffer(&ocean_pass, &[rtv], extent).unwrap()
         })
         .collect::<Vec<_>>();
 
@@ -204,7 +226,7 @@ fn main() {
         location: 0,
         binding: 0,
         element: pso::Element {
-            format: <Vec3<f32> as Formatted>::get_format(),
+            format: <Vec3<f32> as Formatted>::SELF,
             offset: 0,
         },
     });
@@ -212,7 +234,7 @@ fn main() {
         location: 1,
         binding: 0,
         element: pso::Element {
-            format: <Vec2<f32> as Formatted>::get_format(),
+            format: <Vec2<f32> as Formatted>::SELF,
             offset: 12,
         },
     });
@@ -220,7 +242,7 @@ fn main() {
         location: 2,
         binding: 1,
         element: pso::Element {
-            format: <Vec2<f32> as Formatted>::get_format(),
+            format: <Vec2<f32> as Formatted>::SELF,
             offset: 0,
         },
     });
@@ -287,19 +309,19 @@ fn main() {
         let buffer_memory = device.allocate_memory(mem_type, buffer_req.size).unwrap();
         let locals_buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
 
-        let mut locals = device
-            .acquire_mapping_writer::<Locals>(&locals_buffer, 0..buffer_len)
-            .unwrap();
-        locals[0] = Locals {
-            a_proj: perspective.into(),
-            a_view: camera.view().into(),
-        };
-        device.release_mapping_writer(locals);
+        {
+            let mut locals = device
+                .acquire_mapping_writer::<Locals>(&locals_buffer, 0..buffer_len)
+                .unwrap();
+            locals[0] = Locals {
+                a_proj: perspective.into(),
+                a_view: camera.view().into(),
+            };
+            device.release_mapping_writer(locals);
+        }
 
         (locals_buffer, buffer_memory)
     };
-
-    let locals_cbv = device.view_buffer_as_constant(&locals_buffer, 0..std::mem::size_of::<Locals>() as u64).unwrap();
 
     // grid
     let (grid_vertex_buffer, grid_vertex_memory) = {
@@ -318,18 +340,20 @@ fn main() {
         let buffer_memory = device.allocate_memory(mem_type, buffer_req.size).unwrap();
         let vertex_buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
 
-        let mut vertices = device
-            .acquire_mapping_writer::<Vertex>(&vertex_buffer, 0..buffer_len)
-            .unwrap();
-        for z in 0..HALF_RESOLUTION {
-            for x in 0..HALF_RESOLUTION {
-                vertices[z*HALF_RESOLUTION+x] = Vertex {
-                    a_Pos: [x as f32, 0.0f32, z as f32],
-                    a_Uv: [(x as f32) / (HALF_RESOLUTION-1) as f32, (z as f32) / (HALF_RESOLUTION-1) as f32],
-                };
+        {
+            let mut vertices = device
+                .acquire_mapping_writer::<Vertex>(&vertex_buffer, 0..buffer_len)
+                .unwrap();
+            for z in 0..HALF_RESOLUTION {
+                for x in 0..HALF_RESOLUTION {
+                    vertices[z*HALF_RESOLUTION+x] = Vertex {
+                        a_Pos: [x as f32, 0.0f32, z as f32],
+                        a_Uv: [(x as f32) / (HALF_RESOLUTION-1) as f32, (z as f32) / (HALF_RESOLUTION-1) as f32],
+                    };
+                }
             }
+            device.release_mapping_writer(vertices);
         }
-        device.release_mapping_writer(vertices);
 
         (vertex_buffer, buffer_memory)
     };
@@ -350,22 +374,24 @@ fn main() {
         let buffer_memory = device.allocate_memory(mem_type, buffer_req.size).unwrap();
         let buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
 
-        let mut patch = device
-            .acquire_mapping_writer::<PatchOffset>(&buffer, 0..buffer_len)
-            .unwrap();
-        patch[0] = PatchOffset {
-            a_offset: [0.0, 0.0],
-        };
-        patch[1] = PatchOffset {
-            a_offset: [(HALF_RESOLUTION-1) as f32, 0.0],
-        };
-        patch[2] = PatchOffset {
-            a_offset: [0.0, (HALF_RESOLUTION-1) as f32],
-        };
-        patch[3] = PatchOffset {
-            a_offset: [(HALF_RESOLUTION-1) as f32, (HALF_RESOLUTION-1) as f32],
-        };
-        device.release_mapping_writer(patch);
+        {
+            let mut patch = device
+                .acquire_mapping_writer::<PatchOffset>(&buffer, 0..buffer_len)
+                .unwrap();
+            patch[0] = PatchOffset {
+                a_offset: [0.0, 0.0],
+            };
+            patch[1] = PatchOffset {
+                a_offset: [(HALF_RESOLUTION-1) as f32, 0.0],
+            };
+            patch[2] = PatchOffset {
+                a_offset: [0.0, (HALF_RESOLUTION-1) as f32],
+            };
+            patch[3] = PatchOffset {
+                a_offset: [(HALF_RESOLUTION-1) as f32, (HALF_RESOLUTION-1) as f32],
+            };
+            device.release_mapping_writer(patch);
+        }
 
         (buffer, buffer_memory)
     };
@@ -386,21 +412,23 @@ fn main() {
         let buffer_memory = device.allocate_memory(mem_type, buffer_req.size).unwrap();
         let index_buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
 
-        let mut indices = device
-            .acquire_mapping_writer::<u32>(&index_buffer, 0..buffer_len)
-            .unwrap();
-        for z in 0..HALF_RESOLUTION-1 {
-            for x in 0..HALF_RESOLUTION-1 {
-                let i = z*(HALF_RESOLUTION-1)+x;
-                indices[6*i  ] = (z * HALF_RESOLUTION + x) as _;
-                indices[6*i+1] = ((z+1) * HALF_RESOLUTION + x) as _;
-                indices[6*i+2] = (z * HALF_RESOLUTION + x + 1) as _;
-                indices[6*i+3] = (z * HALF_RESOLUTION + x + 1) as _;
-                indices[6*i+4] = ((z+1) * HALF_RESOLUTION + x) as _;
-                indices[6*i+5] = ((z+1) * HALF_RESOLUTION + x + 1) as _;
+        {
+            let mut indices = device
+                .acquire_mapping_writer::<u32>(&index_buffer, 0..buffer_len)
+                .unwrap();
+            for z in 0..HALF_RESOLUTION-1 {
+                for x in 0..HALF_RESOLUTION-1 {
+                    let i = z*(HALF_RESOLUTION-1)+x;
+                    indices[6*i  ] = (z * HALF_RESOLUTION + x) as _;
+                    indices[6*i+1] = ((z+1) * HALF_RESOLUTION + x) as _;
+                    indices[6*i+2] = (z * HALF_RESOLUTION + x + 1) as _;
+                    indices[6*i+3] = (z * HALF_RESOLUTION + x + 1) as _;
+                    indices[6*i+4] = ((z+1) * HALF_RESOLUTION + x) as _;
+                    indices[6*i+5] = ((z+1) * HALF_RESOLUTION + x + 1) as _;
+                }
             }
+            device.release_mapping_writer(indices);
         }
-        device.release_mapping_writer(indices);
 
         (index_buffer, buffer_memory)
     };
@@ -473,7 +501,6 @@ fn main() {
         let locals_buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
         (locals_buffer, buffer_memory)
     };
-    let propagate_locals_cbv = device.view_buffer_as_constant(&propagate_locals_buffer, 0..std::mem::size_of::<PropagateLocals>() as u64).unwrap();
 
     let (correct_locals_buffer, correct_locals_memory) = {
         let buffer_stride = std::mem::size_of::<CorrectionLocals>() as u64;
@@ -491,17 +518,18 @@ fn main() {
         let buffer_memory = device.allocate_memory(mem_type, buffer_req.size).unwrap();
         let locals_buffer = device.bind_buffer_memory(&buffer_memory, 0, buffer_unbound).unwrap();
 
-        let mut locals = device
-            .acquire_mapping_writer::<CorrectionLocals>(&locals_buffer, 0..buffer_len)
-            .unwrap();
-        locals[0] = CorrectionLocals {
-            resolution: RESOLUTION as _,
-        };
-        device.release_mapping_writer(locals);
+        {
+            let mut locals = device
+                .acquire_mapping_writer::<CorrectionLocals>(&locals_buffer, 0..buffer_len)
+                .unwrap();
+            locals[0] = CorrectionLocals {
+                resolution: RESOLUTION as _,
+            };
+            device.release_mapping_writer(locals);
+        }
 
         (locals_buffer, buffer_memory)
     };
-    let correct_locals_cbv = device.view_buffer_as_constant(&correct_locals_buffer, 0..std::mem::size_of::<CorrectionLocals>() as u64).unwrap();
 
     let viewport = core::Viewport {
         x: 0, y: 0,
@@ -540,7 +568,7 @@ fn main() {
         depth: parameters.water_depth,
     };
 
-    let mut ocean = empirical::Ocean::<f32>::new(RESOLUTION);
+    let ocean = empirical::Ocean::<f32>::new(RESOLUTION);
     let (height_spectrum, omega) = empirical::build_height_spectrum(&parameters, &spectrum, RESOLUTION);
 
     // Upload initial data
@@ -619,8 +647,8 @@ fn main() {
         .unwrap();
     let image_memory = device.allocate_memory(device_type, image_req.size).unwrap();
     let displacement_map = device.bind_image_memory(&image_memory, 0, image_unbound).unwrap();
-    let displacement_uav = device.view_image_as_unordered_access(&displacement_map, img_format).unwrap();
-    let displacement_srv = device.view_image_as_shader_resource(&displacement_map, img_format).unwrap();
+    let displacement_uav = device.create_image_view(&displacement_map, img_format, Swizzle::NO, COLOR_RANGE).unwrap();
+    let displacement_srv = device.create_image_view(&displacement_map, img_format, Swizzle::NO, COLOR_RANGE).unwrap();
 
     // Upload data
     {
@@ -631,7 +659,7 @@ fn main() {
                 states: (i::Access::empty(), i::ImageLayout::Undefined) ..
                         (i::SHADER_WRITE, i::ImageLayout::General),
                 target: &displacement_map,
-                range: (0..1, 0..1),
+                range: COLOR_RANGE,
             };
             cmd_buffer.pipeline_barrier(pso::TOP_OF_PIPE .. pso::COMPUTE_SHADER, &[image_barrier]);
 
@@ -668,7 +696,9 @@ fn main() {
             set: &desc_sets[0],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::ConstantBuffer(vec![&locals_cbv]),
+            write: pso::DescriptorWrite::ConstantBuffer(vec![
+                (&locals_buffer, 0..std::mem::size_of::<Locals>() as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &desc_sets[0],
@@ -687,62 +717,49 @@ fn main() {
             set: &propagate.desc_sets[0],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::ConstantBuffer(vec![&propagate_locals_cbv]),
+            write: pso::DescriptorWrite::ConstantBuffer(vec![
+                (&propagate_locals_buffer, 0..std::mem::size_of::<PropagateLocals>() as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &propagate.desc_sets[0],
             binding: 1,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &initial_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&initial_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &propagate.desc_sets[0],
             binding: 2,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &omega_buffer,
-                    range: 0..omega_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&omega_buffer, 0..omega_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &propagate.desc_sets[0],
             binding: 3,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dy_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dy_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &propagate.desc_sets[0],
             binding: 4,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dx_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dx_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &propagate.desc_sets[0],
             binding: 5,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dz_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dz_spec, 0..spectrum_len as u64),
+            ]),
         },
     ]);
 
@@ -751,40 +768,33 @@ fn main() {
             set: &correction.desc_sets[0],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::ConstantBuffer(vec![&correct_locals_cbv]),
+            write: pso::DescriptorWrite::ConstantBuffer(vec![
+                (&correct_locals_buffer, 0..std::mem::size_of::<CorrectionLocals>() as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &correction.desc_sets[0],
             binding: 1,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dy_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dy_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &correction.desc_sets[0],
             binding: 2,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dx_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dx_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &correction.desc_sets[0],
             binding: 3,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dz_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dz_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &correction.desc_sets[0],
@@ -801,34 +811,25 @@ fn main() {
             set: &fft.desc_sets[0],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dx_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dx_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &fft.desc_sets[1],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dy_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dy_spec, 0..spectrum_len as u64),
+            ]),
         },
         pso::DescriptorSetWrite {
             set: &fft.desc_sets[2],
             binding: 0,
             array_offset: 0,
-            write: pso::DescriptorWrite::StorageBuffer(vec![{
-                pso::DescriptorBufferInfo {
-                    buffer: &dz_spec,
-                    range: 0..spectrum_len as u64,
-                }
-            }]),
+            write: pso::DescriptorWrite::StorageBuffer(vec![
+                (&dz_spec, 0..spectrum_len as u64),
+            ]),
         },
     ]);
 
@@ -960,7 +961,7 @@ fn main() {
                 states: (i::SHADER_READ, i::ImageLayout::General) ..
                         (i::SHADER_WRITE, i::ImageLayout::General),
                 target: &displacement_map,
-                range: (0..1, 0..1),
+                range: COLOR_RANGE,
             };
             cmd_buffer.pipeline_barrier(pso::VERTEX_SHADER|pso::COMPUTE_SHADER .. pso::COMPUTE_SHADER, &[dx_barrier, dy_barrier, dz_barrier, image_barrier]);
 
@@ -972,7 +973,7 @@ fn main() {
                 states: (i::SHADER_WRITE, i::ImageLayout::General) ..
                         (i::SHADER_READ, i::ImageLayout::General),
                 target: &displacement_map,
-                range: (0..1, 0..1),
+                range: COLOR_RANGE,
             };
             cmd_buffer.pipeline_barrier(pso::COMPUTE_SHADER .. pso::VERTEX_SHADER, &[image_barrier]);
 
@@ -1021,8 +1022,6 @@ fn main() {
     device.destroy_shader_module(vs_ocean);
     device.destroy_shader_module(fs_ocean);
 
-    device.destroy_constant_buffer_view(locals_cbv);
-
     device.destroy_buffer(grid_index_buffer);
     device.destroy_buffer(grid_vertex_buffer);
     device.destroy_buffer(locals_buffer);
@@ -1034,9 +1033,14 @@ fn main() {
 
     device.free_memory(grid_index_memory);
     device.free_memory(grid_vertex_memory);
+    device.free_memory(grid_patch_memory);
+    device.free_memory(omega_memory);
     device.free_memory(locals_memory);
     device.free_memory(spectrum_memory);
     device.free_memory(propagate_locals_memory);
+    device.free_memory(correct_locals_memory);
+    device.free_memory(omega_staging_memory);
+    device.free_memory(spec_staging_memory);
 
     for pipeline in pipelines {
         if let Ok(pipeline) = pipeline {
@@ -1049,7 +1053,7 @@ fn main() {
     }
 
     for (image, rtv) in frame_images {
-        device.destroy_render_target_view(rtv);
+        device.destroy_image_view(rtv);
     }
 
     device.destroy_fence(frame_fence);

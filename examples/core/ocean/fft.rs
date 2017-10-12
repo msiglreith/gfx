@@ -27,6 +27,22 @@ impl Fft{
                 include_str!("shader/fft_col.comp"),
                 pso::Stage::Compute,
             ).unwrap();
+        #[cfg(feature = "dx12")]
+        let cs_fft_row = device
+            .create_shader_module_from_source(
+                pso::Stage::Compute,
+                "fft_row",
+                "main",
+                include_bytes!("shader/fft.hlsl"),
+            ).unwrap();
+        #[cfg(feature = "dx12")]
+        let cs_fft_col = device
+            .create_shader_module_from_source(
+                pso::Stage::Compute,
+                "fft_row", // TODO
+                "main",
+                include_bytes!("shader/fft.hlsl"),
+            ).unwrap();
 
         let set_layout = device.create_descriptor_set_layout(&[
                 pso::DescriptorSetLayoutBinding {
@@ -74,6 +90,6 @@ impl Fft{
     }
 
     pub fn destroy(self, device: &mut <B as Backend>::Device) {
-
+        //  TODO
     }
 }

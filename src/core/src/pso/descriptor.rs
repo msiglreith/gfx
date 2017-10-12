@@ -97,6 +97,6 @@ pub enum DescriptorWrite<'a, B: Backend> {
     UniformTexelBuffer(Vec<&'a B::BufferView>),
     StorageTexelBuffer(Vec<&'a B::BufferView>),
     ConstantBuffer(Vec<(&'a B::Buffer, Range<u64>)>),
-    StorageBuffer, //TODO
+    StorageBuffer(Vec<(&'a B::Buffer, Range<u64>)>),
     InputAttachment(Vec<(&'a B::ImageView, ImageLayout)>),
 }

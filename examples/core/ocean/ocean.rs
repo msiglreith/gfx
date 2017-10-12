@@ -26,6 +26,14 @@ impl Propagation {
                 include_str!("shader/propagate.comp"),
                 pso::Stage::Compute,
             ).unwrap();
+        #[cfg(feature = "dx12")]
+        let cs_propagate = device
+            .create_shader_module_from_source(
+                pso::Stage::Compute,
+                "", // TODO
+                "main",
+                include_bytes!("shader/ocean.hlsl"),
+            ).unwrap();
 
         let set_layout = device.create_descriptor_set_layout(&[
                 pso::DescriptorSetLayoutBinding {
@@ -131,7 +139,15 @@ impl Correction {
                 include_str!("shader/correction.comp"),
                 pso::Stage::Compute,
             ).unwrap();
-
+        #[cfg(feature = "dx12")]
+        let cs_correct = device
+            .create_shader_module_from_source(
+                pso::Stage::Compute,
+                "", // TODO
+                "main",
+                include_bytes!("shader/ocean.hlsl"),
+            ).unwrap();
+            
         let set_layout = device.create_descriptor_set_layout(&[
                 pso::DescriptorSetLayoutBinding {
                     binding: 0,
