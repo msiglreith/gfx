@@ -46,6 +46,7 @@ void butterfly(uint block_size, uint src, uint dst) {
 void main() {
     const uint index = gl_GlobalInvocationID.x + 512 * gl_GlobalInvocationID.y;
     shared_row[0][gl_GlobalInvocationID.x] = fft_data[index];
+    memoryBarrierShared();
     barrier();
 
     for(uint i = 0; i < 9; i++) {
@@ -53,6 +54,7 @@ void main() {
         const uint src = i % 2;
         const uint dst = (i+1) % 2;
         butterfly(block_size, src, dst);
+        memoryBarrierShared();
         barrier();
     }
 

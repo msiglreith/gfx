@@ -1,3 +1,7 @@
+#![cfg_attr(
+    not(any(feature = "vulkan", feature = "dx12")),
+    allow(dead_code, unused_extern_crates, unused_imports)
+)]
 
 extern crate env_logger;
 extern crate cgmath;
@@ -19,10 +23,14 @@ use hal::format::{self, Format, Formatted, Srgba8 as ColorFormat, Swizzle, Vec2,
 use hal::target::Rect;
 
 use panopaea::ocean::empirical;
+
+#[cfg(any(feature = "vulkan", feature = "dx12"))]
 use ocean::{CorrectionLocals, PropagateLocals};
 
 mod camera;
+#[cfg(any(feature = "vulkan", feature = "dx12"))]
 mod fft;
+#[cfg(any(feature = "vulkan", feature = "dx12"))]
 mod ocean;
 
 #[derive(Debug, Clone, Copy)]
@@ -1062,4 +1070,9 @@ fn main() {
 
 fn align_up(value: u64, alignment: u64) -> u64 {
     ((value + alignment - 1) / alignment) * alignment
+}
+
+#[cfg(not(any(feature = "vulkan", feature = "dx12")))]
+fn main() {
+    println!("You need to enable the one of the following API backends: vulkan or dx12");
 }
