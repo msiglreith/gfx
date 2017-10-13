@@ -39,7 +39,7 @@ impl Fft{
         let cs_fft_col = device
             .create_shader_module_from_source(
                 pso::Stage::Compute,
-                "fft_row", // TODO
+                "fft_col",
                 "main",
                 include_bytes!("shader/fft.hlsl"),
             ).unwrap();

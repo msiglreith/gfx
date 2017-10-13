@@ -30,9 +30,9 @@ impl Propagation {
         let cs_propagate = device
             .create_shader_module_from_source(
                 pso::Stage::Compute,
-                "", // TODO
+                "propagate_cs", // TODO
                 "main",
-                include_bytes!("shader/ocean.hlsl"),
+                include_bytes!("shader/propagate.hlsl"),
             ).unwrap();
 
         let set_layout = device.create_descriptor_set_layout(&[
@@ -143,9 +143,9 @@ impl Correction {
         let cs_correct = device
             .create_shader_module_from_source(
                 pso::Stage::Compute,
-                "", // TODO
+                "correction_cs",
                 "main",
-                include_bytes!("shader/ocean.hlsl"),
+                include_bytes!("shader/correction.hlsl"),
             ).unwrap();
 
         let set_layout = device.create_descriptor_set_layout(&[

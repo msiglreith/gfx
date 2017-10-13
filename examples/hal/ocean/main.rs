@@ -132,7 +132,7 @@ fn main() {
     let vs_ocean = device
         .create_shader_module_from_source(
             pso::Stage::Vertex,
-            "", // TODO
+            "ocean_vs", // TODO
             "main",
             include_bytes!("shader/ocean.hlsl"),
         ).unwrap();
@@ -140,7 +140,7 @@ fn main() {
     let fs_ocean = device
         .create_shader_module_from_source(
             pso::Stage::Fragment,
-            "", // TODO
+            "ocean_ps", // TODO
             "main",
             include_bytes!("shader/ocean.hlsl"),
         ).unwrap();
@@ -657,7 +657,7 @@ fn main() {
 
             let image_barrier = m::Barrier::Image {
                 states: (i::Access::empty(), i::ImageLayout::Undefined) ..
-                        (i::SHADER_WRITE, i::ImageLayout::General),
+                        (i::SHADER_READ|i::SHADER_WRITE, i::ImageLayout::General),
                 target: &displacement_map,
                 range: COLOR_RANGE,
             };
@@ -958,8 +958,8 @@ fn main() {
                 target: &dz_spec,
             };
             let image_barrier = m::Barrier::Image {
-                states: (i::SHADER_READ, i::ImageLayout::General) ..
-                        (i::SHADER_WRITE, i::ImageLayout::General),
+                states: (i::SHADER_READ|i::SHADER_WRITE, i::ImageLayout::General) ..
+                        (i::SHADER_READ|i::SHADER_WRITE, i::ImageLayout::General),
                 target: &displacement_map,
                 range: COLOR_RANGE,
             };
@@ -970,8 +970,8 @@ fn main() {
             cmd_buffer.dispatch(RESOLUTION as u32, RESOLUTION as u32, 1);
 
             let image_barrier = m::Barrier::Image {
-                states: (i::SHADER_WRITE, i::ImageLayout::General) ..
-                        (i::SHADER_READ, i::ImageLayout::General),
+                states: (i::SHADER_READ|i::SHADER_WRITE, i::ImageLayout::General) ..
+                        (i::SHADER_READ|i::SHADER_WRITE, i::ImageLayout::General),
                 target: &displacement_map,
                 range: COLOR_RANGE,
             };
