@@ -67,6 +67,7 @@ impl Version {
     /// and will try to recover at least the first two version numbers without
     /// resulting in an `Err`.
     pub fn parse(mut src: &'static str) -> Result<Version, &'static str> {
+        println!("{:?}", src);
         let es_sig = " ES ";
         let is_es = match src.rfind(es_sig) {
             Some(pos) => {
