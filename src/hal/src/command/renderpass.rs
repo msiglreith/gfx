@@ -5,7 +5,7 @@ use buffer::IndexBufferView;
 use queue::{Supports, Graphics};
 use super::{
     ColorValue, StencilValue, Rect, Viewport,
-    AttachmentClear, ClearValue, CommandBuffer, RawCommandBuffer,
+    AttachmentClear, ClearValue, CommandBuffer, RawCommandBuffer, Submit
 };
 
 
@@ -23,8 +23,8 @@ where B::CommandBuffer: 'a;
 
 impl<'a, B: Backend> RenderPassInlineEncoder<'a, B> {
     ///
-    pub fn new<C, T>(
-        cmd_buffer: &'a mut CommandBuffer<B, C>,
+    pub fn new<C, T, S: Submit<B, C>>(
+        cmd_buffer: &'a mut CommandBuffer<B, C, S>,
         render_pass: &B::RenderPass,
         frame_buffer: &B::Framebuffer,
         render_area: Rect,

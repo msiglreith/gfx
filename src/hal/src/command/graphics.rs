@@ -7,7 +7,7 @@ use buffer::IndexBufferView;
 use image::{ImageLayout, SubresourceRange};
 use query::{Query, QueryControl, QueryId};
 use queue::capability::{Graphics, GraphicsOrCompute, Supports};
-use super::{CommandBuffer, RawCommandBuffer, RenderPassInlineEncoder};
+use super::{CommandBuffer, RawCommandBuffer, Submit, RenderPassInlineEncoder};
 
 
 #[allow(missing_docs)]
@@ -119,7 +119,7 @@ pub enum AttachmentClear {
     DepthStencil(ClearDepthStencil),
 }
 
-impl<'a, B: Backend, C: Supports<Graphics>> CommandBuffer<'a, B, C> {
+impl<'a, B: Backend, C: Supports<Graphics>, S: Submit<B, C>> CommandBuffer<'a, B, C, S> {
     ///
     pub fn begin_renderpass_inline<T>(
         &mut self,
@@ -219,7 +219,7 @@ impl<'a, B: Backend, C: Supports<Graphics>> CommandBuffer<'a, B, C> {
     }
 }
 
-impl<'a, B: Backend, C: Supports<GraphicsOrCompute>> CommandBuffer<'a, B, C> {
+impl<'a, B: Backend, C: Supports<GraphicsOrCompute>, S: Submit<B, C>> CommandBuffer<'a, B, C, S> {
     ///
     pub fn begin_query(&mut self, query: Query<B>, flags: QueryControl) {
         self.raw.begin_query(query, flags)

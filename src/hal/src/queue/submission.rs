@@ -67,14 +67,16 @@ where
 
     /// Append a new list of finished command buffers to this submission.
     ///
-    /// All submits for this call must be of the same capability.
+    /// All submits for this call must be of the same type.
     /// Submission will be automatically promoted to to the minimum required capability
     /// to hold all passed submits.
-    pub fn submit<S>(mut self, submits: &[Submit<B, S>]) -> Submission<'a, B, <(C, S) as Upper>::Result>
+    pub fn submit<I, S, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
     where
-        (C, S): Upper
+        I: Iterator<Item=S>,
+        S: Submit<B, K>,
+        (C, K): Upper
     {
-        self.cmd_buffers.extend(submits.iter().map(|submit| submit.0.clone()));
+        self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.buffer() }));
         Submission {
             cmd_buffers: self.cmd_buffers,
             wait_semaphores: self.wait_semaphores,

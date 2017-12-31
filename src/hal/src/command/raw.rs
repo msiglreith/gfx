@@ -16,7 +16,7 @@ use super::{
 ///
 pub trait RawCommandBuffer<B: Backend>: Clone + Send {
     ///
-    fn begin(&mut self);
+    fn begin(&mut self, reusable: bool);
 
     ///
     fn finish(&mut self);

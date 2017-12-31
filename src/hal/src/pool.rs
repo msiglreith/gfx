@@ -1,7 +1,7 @@
 //! Command pools
 
 use {Backend};
-use command::{CommandBuffer, RawCommandBuffer};
+use command::{CommandBuffer, RawCommandBuffer, ReusableCommandBuffer};
 use std::marker::PhantomData;
 
 bitflags!(
@@ -72,7 +72,7 @@ impl<B: Backend, C> CommandPool<B, C> {
         }
     }
 
-    /// Get a command buffer for recording.
+    /// Get a single-use command buffer for recording.
     ///
     /// You can only record to one command buffer per pool at the same time.
     /// If more command buffers are requested than allocated, new buffers will be reserved.
@@ -81,10 +81,26 @@ impl<B: Backend, C> CommandPool<B, C> {
         self.reserve(1);
 
         let buffer = &mut self.buffers[self.next_buffer];
-        buffer.begin();
+        buffer.begin(false);
         self.next_buffer += 1;
         unsafe {
             CommandBuffer::new(buffer)
+        }
+    }
+
+    /// Get a reusable command buffer for recording.
+    ///
+    /// You can only record to one command buffer per pool at the same time.
+    /// If more command buffers are requested than allocated, new buffers will be reserved.
+    /// The command buffer will be returned in 'recording' state.
+    pub fn acquire_reusable_command_buffer(&mut self) -> ReusableCommandBuffer<B, C> {
+        self.reserve(1);
+
+        let buffer = &mut self.buffers[self.next_buffer];
+        buffer.begin(true);
+        self.next_buffer += 1;
+        unsafe {
+            ReusableCommandBuffer::new(buffer)
         }
     }
 
