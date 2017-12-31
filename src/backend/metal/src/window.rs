@@ -18,6 +18,7 @@ use core_foundation::dictionary::CFDictionary;
 use core_foundation::number::{CFNumber, CFNumberRef};
 use core_graphics::base::CGFloat;
 use core_graphics::geometry::CGRect;
+use cocoa::foundation::{NSRect};
 use io_surface::{self, IOSurface};
 
 pub struct Surface(pub(crate) Rc<SurfaceInner>);
@@ -46,25 +47,39 @@ const kCVPixelFormatType_32RGBA: u32 = (b'R' as u32) << 24 | (b'G' as u32) << 16
 
 impl hal::Surface<Backend> for Surface {
     fn get_kind(&self) -> image::Kind {
-        unimplemented!()
+        let (width, height) = self.pixel_dimensions();
+
+        image::Kind::D2(width, height, image::AaMode::Single)
     }
 
     fn capabilities_and_formats(
         &self, _: &PhysicalDevice,
-    ) -> (hal::SurfaceCapabilities, Vec<format::Format>) {
+    ) -> (hal::SurfaceCapabilities, Option<Vec<format::Format>>) {
         let caps = hal::SurfaceCapabilities {
             image_count: 1..8,
             current_extent: None,
             extents: Extent2d { width: 4, height: 4} .. Extent2d { width: 4096, height: 4096 },
             max_image_layers: 1,
         };
-        (caps, vec![
-            format::Format(SurfaceType::R8_G8_B8_A8, ChannelType::Srgb),
-        ])
+        let formats = Some(vec![format::Format::Rgba8Srgb]);
+        (caps, formats)
     }
 
     fn supports_queue_family(&self, _queue_family: &QueueFamily) -> bool {
         true // TODO: Not sure this is the case, don't know associativity of IOSurface
+    }
+}
+
+impl Surface {
+    fn pixel_dimensions(&self) -> (u16, u16) {
+        unsafe {
+            // NSView bounds are measured in DIPs
+            let bounds: NSRect = msg_send![self.0.nsview, bounds];
+            let window: *mut Object = msg_send![self.0.nsview, window];
+            assert!(!window.is_null());
+            let scale: CGFloat = msg_send![window, backingScaleFactor];
+            ((bounds.size.width * scale) as u16, (bounds.size.height * scale) as u16)
+        }
     }
 }
 
@@ -74,8 +89,8 @@ impl Device {
         surface: &mut Surface,
         config: SwapchainConfig,
     ) -> (Swapchain, Backbuffer<Backend>) {
-        let (mtl_format, cv_format) = match config.color_format {
-            format::Format(SurfaceType::R8_G8_B8_A8, ChannelType::Srgb) => (MTLPixelFormat::RGBA8Unorm_sRGB, kCVPixelFormatType_32RGBA),
+        let (mtl_format, cv_format, bytes_per_block) = match config.color_format {
+            format::Format::Rgba8Srgb => (MTLPixelFormat::RGBA8Unorm_sRGB, kCVPixelFormatType_32RGBA, 4),
             _ => panic!("unsupported backbuffer format"), // TODO: more formats
         };
 
@@ -121,7 +136,11 @@ impl Device {
                     iosurface: surface.obj
                     plane: 0
                 ];
-                native::Image(mapped_texture)
+                native::Image {
+                    raw: mapped_texture,
+                    bytes_per_block,
+                    block_dim: (1, 1),
+                }
             }).collect();
 
             let swapchain = Swapchain {

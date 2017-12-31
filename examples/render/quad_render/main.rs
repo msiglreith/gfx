@@ -1,6 +1,9 @@
 extern crate env_logger;
 extern crate gfx_hal as hal;
+#[cfg(feature = "vulkan")]
 extern crate gfx_backend_vulkan as back;
+#[cfg(feature = "metal")]
+extern crate gfx_backend_metal as back;
 #[macro_use]
 extern crate gfx_render as gfx;
 
@@ -9,9 +12,9 @@ extern crate image;
 
 use std::io::Cursor;
 
-use hal::{command, device as d, image as i, pso};
+use hal::{command, device as d, format as f, image as i, pso};
 use hal::{Device, Instance, PhysicalDevice, Primitive};
-use gfx::format::{Srgba8 as ColorFormat};
+use gfx::format::{Rgba8Srgb as ColorFormat};
 use gfx::allocators::StackAllocator as Allocator;
 
 gfx_buffer_struct! {
@@ -48,6 +51,10 @@ gfx_graphics_pipeline! {
 
 fn main() {
     env_logger::init().unwrap();
+
+    #[cfg(feature = "metal")]
+    let mut autorelease_pool = unsafe { back::AutoreleasePool::new() };
+
     let mut events_loop = winit::EventsLoop::new();
     let window = winit::WindowBuilder::new()
         .with_dimensions(1024, 768)
@@ -97,7 +104,7 @@ fn main() {
     ).unwrap();
 
     let image_range = gfx::image::SubresourceRange {
-        aspects: i::AspectFlags::COLOR,
+        aspects: f::AspectFlags::COLOR,
         levels: 0 .. 1,
         layers: 0 .. 1,
     };
@@ -151,7 +158,7 @@ fn main() {
         &mut upload,
         gfx::buffer::Usage::TRANSFER_SRC,
         upload_size,
-        image_stride as u64
+        image_stride as u64,
     ).unwrap();
 
     println!("copy image data into staging buffer");
@@ -208,10 +215,10 @@ fn main() {
         &image,
         &[command::BufferImageCopy {
             buffer_offset: 0,
-            buffer_row_pitch: row_pitch,
-            buffer_slice_pitch: row_pitch * (height as u32),
+            buffer_width: row_pitch / image_stride as u32,
+            buffer_height: height as u32,
             image_layers: gfx::image::SubresourceLayers {
-                aspects: i::AspectFlags::COLOR,
+                aspects: f::AspectFlags::COLOR,
                 level: 0,
                 layers: 0 .. 1,
             },
@@ -256,6 +263,11 @@ fn main() {
 
         submits.push(encoder.finish());
         context.present(submits.drain(..).collect::<Vec<_>>());
+
+        #[cfg(feature = "metal")]
+        unsafe {
+            autorelease_pool.reset();
+        }
     }
 
     println!("cleanup!");

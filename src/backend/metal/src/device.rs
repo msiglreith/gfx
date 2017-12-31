@@ -60,6 +60,41 @@ fn create_function_constants(specialization: &[pso::Specialization]) -> metal::F
     constants_raw
 }
 
+fn get_final_function(library: &metal::LibraryRef, entry: &str, specialization: &[pso::Specialization]) -> Result<metal::Function, ()> {
+    let initial_constants = if specialization.is_empty() {
+        None
+    } else {
+        Some(create_function_constants(specialization))
+    };
+
+    let mut mtl_function = library
+        .get_function(entry, initial_constants)
+        .map_err(|_| {
+            error!("Invalid vertex shader entry point");
+            ()
+        })?;
+    let has_more_function_constants = unsafe {
+        let dictionary: *mut ::objc::runtime::Object = msg_send![mtl_function, functionConstantsDictionary];
+        let count: NSUInteger = msg_send![dictionary, count];
+        count > 0
+    };
+    if has_more_function_constants {
+        // TODO: check that all remaining function constants are optional, otherwise return an error
+        if specialization.is_empty() {
+            // These may be optional function constants, in which case we need to specialize the function with an empty set of constants
+            // or we'll get an error when we make the PSO
+            mtl_function = library
+                .get_function(entry, Some(create_function_constants(&[])))
+                .map_err(|_| {
+                    error!("Invalid vertex shader entry point");
+                    ()
+                })?;
+        }
+    }
+
+    Ok(mtl_function)
+}
+
 fn memory_types() -> [hal::MemoryType; 4] {
     [
         hal::MemoryType {
@@ -139,7 +174,7 @@ impl hal::PhysicalDevice<Backend> for PhysicalDevice {
         }
     }
 
-    fn format_properties(&self, _: format::Format) -> format::Properties {
+    fn format_properties(&self, _: Option<format::Format>) -> format::Properties {
         unimplemented!()
     }
 
@@ -364,14 +399,7 @@ impl Device {
             pipeline_desc.shaders.vertex.entry
         };
 
-        let vs_constants = if pipeline_desc.shaders.vertex.specialization.is_empty() {
-            None
-        } else {
-            Some(create_function_constants(pipeline_desc.shaders.vertex.specialization))
-        };
-
-        let mtl_vertex_function = vs_lib
-            .get_function(vs_entry, vs_constants)
+        let mtl_vertex_function = get_final_function(&vs_lib, vs_entry, pipeline_desc.shaders.vertex.specialization)
             .map_err(|_| {
                 error!("Invalid vertex shader entry point");
                 pso::CreationError::Other
@@ -396,16 +424,9 @@ impl Device {
                 fragment_entry.entry
             };
 
-            let fs_constants = if fragment_entry.specialization.is_empty() {
-                None
-            } else {
-                Some(create_function_constants(fragment_entry.specialization))
-            };
-
-            let mtl_fragment_function = fs_lib
-                .get_function(fs_entry, fs_constants)
+            let mtl_fragment_function = get_final_function(&fs_lib, fs_entry, fragment_entry.specialization)
                 .map_err(|_| {
-                    error!("invalid pixel shader entry point");
+                    error!("Invalid vertex shader entry point");
                     pso::CreationError::Other
                 })?;
             pipeline.set_fragment_function(Some(&mtl_fragment_function));
@@ -430,7 +451,7 @@ impl Device {
 
         // Copy color target info from Subpass
         for (i, attachment) in pass_descriptor.main_pass.attachments.iter().enumerate() {
-            let (mtl_format, is_depth) = map_format(attachment.format).expect("unsupported color format for Metal");
+            let (mtl_format, is_depth) = attachment.format.and_then(map_format).expect("unsupported color format for Metal");
             if !is_depth {
                 let descriptor = pipeline.color_attachments().object_at(i).expect("too many color attachments");
                 descriptor.set_pixel_format(mtl_format);
@@ -570,22 +591,22 @@ impl hal::Device<Backend> for Device {
 
         let mut color_attachment_index = 0;
         for attachment in attachments {
-            let (_format, is_depth) = map_format(attachment.format).expect("unsupported attachment format");
+            if let Some((_format, is_depth)) = attachment.format.and_then(map_format) {
+                let mtl_attachment: &metal::RenderPassAttachmentDescriptorRef;
+                if !is_depth {
+                    let color_attachment = pass.color_attachments().object_at(color_attachment_index).expect("too many color attachments");
+                    color_attachment_index += 1;
 
-            let mtl_attachment: &metal::RenderPassAttachmentDescriptorRef;
-            if !is_depth {
-                let color_attachment = pass.color_attachments().object_at(color_attachment_index).expect("too many color attachments");
-                color_attachment_index += 1;
+                    mtl_attachment = color_attachment;
+                } else {
+                    let depth_attachment = pass.depth_attachment().expect("no depth attachement");
 
-                mtl_attachment = color_attachment;
-            } else {
-                let depth_attachment = pass.depth_attachment().expect("no depth attachement");
+                    mtl_attachment = depth_attachment;
+                }
 
-                mtl_attachment = depth_attachment;
+                mtl_attachment.set_load_action(map_load_operation(attachment.ops.load));
+                mtl_attachment.set_store_action(map_store_operation(attachment.ops.store));
             }
-
-            mtl_attachment.set_load_action(map_load_operation(attachment.ops.load));
-            mtl_attachment.set_store_action(map_store_operation(attachment.ops.store));
         }
 
         n::RenderPass {
@@ -1068,7 +1089,7 @@ impl hal::Device<Backend> for Device {
     }
 
     fn create_buffer_view(
-        &self, _buffer: &n::Buffer, _format: format::Format, _range: Range<u64>
+        &self, _buffer: &n::Buffer, _format: Option<format::Format>, _range: Range<u64>
     ) -> Result<n::BufferView, buffer::ViewError> {
         unimplemented!()
     }
@@ -1081,7 +1102,11 @@ impl hal::Device<Backend> for Device {
         &self, kind: image::Kind, mip_levels: image::Level, format: format::Format, usage: image::Usage)
          -> Result<n::UnboundImage, image::CreationError>
     {
-        let (mtl_format, _) = map_format(format).ok_or(image::CreationError::Format(format.0, Some(format.1)))?;
+        let base_format = format.base_format();
+        let format_desc = base_format.0.desc();
+        let bytes_per_block = (format_desc.bits / 8) as _;
+        let block_dim = format_desc.dim;
+        let (mtl_format, _) = map_format(format).ok_or(image::CreationError::Format(format))?;
 
         let descriptor = metal::TextureDescriptor::new();
 
@@ -1098,7 +1123,11 @@ impl hal::Device<Backend> for Device {
         descriptor.set_pixel_format(mtl_format);
         descriptor.set_usage(map_texture_usage(usage));
 
-        Ok(n::UnboundImage(descriptor))
+        Ok(n::UnboundImage {
+            desc: descriptor,
+            bytes_per_block,
+            block_dim,
+        })
     }
 
     fn get_image_requirements(&self, image: &n::UnboundImage) -> memory::Requirements {
@@ -1112,8 +1141,8 @@ impl hal::Device<Backend> for Device {
                 MTLResourceOptions::StorageModeManaged | MTLResourceOptions::CPUCacheModeWriteCombined,
                 MTLResourceOptions::StorageModePrivate,
             ].iter() {
-                image.0.set_resource_options(options);
-                let requirements = self.device.heap_texture_size_and_align(&image.0);
+                image.desc.set_resource_options(options);
+                let requirements = self.device.heap_texture_size_and_align(&image.desc);
                 max_size = cmp::max(max_size, requirements.size);
                 max_alignment = cmp::max(max_alignment, requirements.align);
             }
@@ -1134,26 +1163,32 @@ impl hal::Device<Backend> for Device {
     fn bind_image_memory(
         &self, memory: &n::Memory, _offset: u64, image: n::UnboundImage
     ) -> Result<n::Image, BindError> {
-        Ok(n::Image(match *memory {
+        let raw = match *memory {
             n::Memory::Native(ref heap) => {
                 let resource_options = resource_options_from_storage_and_cache(
                     heap.storage_mode(),
                     heap.cpu_cache_mode());
-                image.0.set_resource_options(resource_options);
-                heap.new_texture(&image.0)
+                image.desc.set_resource_options(resource_options);
+                heap.new_texture(&image.desc)
                     .unwrap_or_else(|| {
                         // TODO: disable hazard tracking?
-                        self.device.new_texture(&image.0)
+                        self.device.new_texture(&image.desc)
                     })
             },
             n::Memory::Emulated { memory_type, size: _ } => {
                 // TODO: disable hazard tracking?
                 let memory_properties = memory_types()[memory_type].properties;
                 let resource_options = map_memory_properties_to_options(memory_properties);
-                image.0.set_resource_options(resource_options);
-                self.device.new_texture(&image.0)
+                image.desc.set_resource_options(resource_options);
+                self.device.new_texture(&image.desc)
             }
-        }))
+        };
+
+        Ok(n::Image {
+            raw,
+            bytes_per_block: image.bytes_per_block,
+            block_dim: image.block_dim,
+        })
     }
 
     fn destroy_image(&self, _image: n::Image) {
@@ -1176,7 +1211,7 @@ impl hal::Device<Backend> for Device {
             },
         };
 
-        Ok(n::ImageView(image.0.new_texture_view(mtl_format)))
+        Ok(n::ImageView(image.raw.new_texture_view(mtl_format)))
     }
 
     fn destroy_image_view(&self, _view: n::ImageView) {
