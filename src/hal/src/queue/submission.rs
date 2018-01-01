@@ -73,7 +73,7 @@ where
     pub fn submit<I, S, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
     where
         I: Iterator<Item=S>,
-        S: Submittable<B, K>,
+        S: Submittable<B, K, Primary>,
         (C, K): Upper
     {
         self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.into_buffer() }));

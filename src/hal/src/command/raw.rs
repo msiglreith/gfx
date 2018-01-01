@@ -13,10 +13,19 @@ use super::{
     ImageCopy, ImageResolve, SubpassContents,
 };
 
+bitflags! {
+    #[derive(Default)]
+    pub struct CommandBufferFlags: u16 {
+        const ONE_TIME_SUBMIT = 0x1;
+        const RENDER_PASS_CONTINUE = 0x2;
+        const SIMULTANEOUS_USE = 0x4;
+    }
+}
+
 ///
 pub trait RawCommandBuffer<B: Backend>: Clone + Send {
     ///
-    fn begin(&mut self, reusable: bool);
+    fn begin(&mut self, flags: CommandBufferFlags);
 
     ///
     fn finish(&mut self);
@@ -325,5 +334,11 @@ pub trait RawCommandBuffer<B: Backend>: Clone + Send {
         layout: &B::PipelineLayout,
         offset: u32,
         constants: &[u32],
+    );
+
+    ///
+    fn execute_commands(
+        &mut self,
+        buffers: &[B::CommandBuffer],
     );
 }
