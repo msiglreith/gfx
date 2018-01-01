@@ -3,7 +3,7 @@
 //! // TODO
 
 use {pso, Backend};
-use command::{Submit};
+use command::Submittable;
 use super::capability::{Transfer, Supports, Upper};
 use std::marker::PhantomData;
 use smallvec::SmallVec;
@@ -73,10 +73,10 @@ where
     pub fn submit<I, S, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
     where
         I: Iterator<Item=S>,
-        S: Submit<B, K>,
+        S: Submittable<B, K>,
         (C, K): Upper
     {
-        self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.buffer() }));
+        self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.into_buffer() }));
         Submission {
             cmd_buffers: self.cmd_buffers,
             wait_semaphores: self.wait_semaphores,

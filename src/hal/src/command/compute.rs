@@ -2,9 +2,9 @@ use std::borrow::Borrow;
 
 use Backend;
 use queue::capability::{Compute, Supports};
-use super::{CommandBuffer, RawCommandBuffer, Submit};
+use super::{CommandBuffer, RawCommandBuffer, Shot};
 
-impl<'a, B: Backend, C: Supports<Compute>, S: Submit<B, C>> CommandBuffer<'a, B, C, S> {
+impl<'a, B: Backend, C: Supports<Compute>, S: Shot> CommandBuffer<'a, B, C, S> {
     ///
     pub fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline) {
         self.raw.bind_compute_pipeline(pipeline)
