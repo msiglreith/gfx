@@ -10,7 +10,9 @@
 pub mod capability;
 pub mod submission;
 
+use command::{Primary, Submittable};
 use Backend;
+use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -113,7 +115,10 @@ pub trait RawCommandQueue<B: Backend> {
     /// Unsafe because it's not checked that the queue can process the submitted command buffers.
     /// Trying to submit compute commands to a graphics queue will result in undefined behavior.
     /// Each queue implements safe wrappers according to their supported functionalities!
-    unsafe fn submit_raw(&mut self, RawSubmission<B>, Option<&B::Fence>);
+    unsafe fn submit_raw<IC>(&mut self, RawSubmission<B, IC>, Option<&B::Fence>)
+    where
+        IC: IntoIterator,
+        IC::Item: Borrow<B::CommandBuffer>;
 }
 
 /// Stronger-typed and safer `CommandQueue` wraps around `RawCommandQueue`.
@@ -131,11 +136,12 @@ impl<B: Backend, C> CommandQueue<B, C> {
     }
 
     ///
-    pub fn submit<D>(&mut self,
-        submission: Submission<B, D>,
+    pub fn submit<D, S>(&mut self,
+        submission: Submission<B, D, S>,
         fence: Option<&B::Fence>,
     ) where
-        C: Supports<D>
+        C: Supports<D>,
+        S: Submittable<B, D, Primary>
     {
         unsafe {
             self.0.submit_raw(submission.as_raw(), fence)

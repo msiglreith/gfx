@@ -219,12 +219,13 @@ impl<'a, B: Backend> RenderPassSecondaryEncoder<'a, B> {
     }
 
     ///
-    pub fn execute_commands<I, S>(&mut self, submits: I) 
+    pub fn execute_commands<I>(&mut self, submits: I)
     where
-        I: Iterator<Item=S>,
-        S: Submittable<B, Subpass, Secondary>,
+        I: IntoIterator,
+        I::Item: Borrow<Submittable<B, Subpass, Secondary>>,
     {
-        self.get_buffer().execute_commands(submits.map(|submit| unsafe { submit.into_buffer() }));
+        let submits = submits.into_iter().map(|submit| submit).collect::<Vec<_>>();
+        self.get_buffer().execute_commands(submits.iter().map(|submit| unsafe { submit.borrow().into_buffer() }));
     }
 }
 
@@ -244,7 +245,7 @@ pub struct SubpassCommandBuffer<B: Backend, S: Shot>(pub(crate) B::CommandBuffer
 impl<B: Backend, S: Shot> SubpassCommandBuffer<B, S> {
     #[inline(always)]
     fn get_buffer(&mut self) -> &mut B::CommandBuffer { &mut self.0 }
-    
+
     add_subpass_commands!(get_buffer);
 
     /// Finish recording commands to the command buffer.

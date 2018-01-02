@@ -7,11 +7,16 @@ use command::{Submittable, Primary};
 use super::capability::{Transfer, Supports, Upper};
 use std::marker::PhantomData;
 use smallvec::SmallVec;
+use std::borrow::Borrow;
 
 /// Raw submission information for a command queue.
-pub struct RawSubmission<'a, B: Backend + 'a> {
+pub struct RawSubmission<'a, B: Backend + 'a, IC>
+where
+    IC: IntoIterator,
+    IC::Item: Borrow<B::CommandBuffer>,
+{
     /// Command buffers to submit.
-    pub cmd_buffers: &'a [B::CommandBuffer],
+    pub cmd_buffers: IC,
     /// Semaphores to wait being signalled before submission.
     pub wait_semaphores: &'a [(&'a B::Semaphore, pso::PipelineStage)],
     /// Semaphores which get signalled after submission.
@@ -19,14 +24,14 @@ pub struct RawSubmission<'a, B: Backend + 'a> {
 }
 
 /// Submission information for a command queue.
-pub struct Submission<'a, B: Backend, C> {
-    cmd_buffers: SmallVec<[B::CommandBuffer; 16]>,
+pub struct Submission<'a, B: Backend, C, S> {
+    cmd_buffers: SmallVec<[S; 16]>,
     wait_semaphores: SmallVec<[(&'a B::Semaphore, pso::PipelineStage); 16]>,
     signal_semaphores: SmallVec<[&'a B::Semaphore; 16]>,
     marker: PhantomData<C>,
 }
 
-impl<'a, B: Backend> Submission<'a, B, Transfer> {
+impl<'a, B: Backend, S> Submission<'a, B, Transfer, S> {
     /// Create a new empty (transfer) submission.
     ///
     /// Transfer is the minimum supported capability by all queues.
@@ -40,9 +45,9 @@ impl<'a, B: Backend> Submission<'a, B, Transfer> {
     }
 }
 
-impl<'a, B, C> Submission<'a, B, C>
+impl<'a, B, C, S> Submission<'a, B, C, S>
 where
-    B: Backend
+    B: Backend,
 {
     /// Set semaphores which will waited on to be signalled before the submission will be executed.
     pub fn wait_on(mut self, semaphores: &[(&'a B::Semaphore, pso::PipelineStage)]) -> Self {
@@ -57,9 +62,12 @@ where
     }
 
     /// Convert strong-typed submission object into untyped equivalent.
-    pub(super) fn as_raw(&self) -> RawSubmission<B> {
+    pub(super) fn as_raw(&self) -> RawSubmission<B, Vec<&B::CommandBuffer>>
+    where
+        S: Submittable<B, C, Primary>,
+    {
         RawSubmission {
-            cmd_buffers: &self.cmd_buffers,
+            cmd_buffers: self.cmd_buffers.iter().map(|submit| unsafe { submit.into_buffer() }).collect::<Vec<_>>(),
             wait_semaphores: &self.wait_semaphores,
             signal_semaphores: &self.signal_semaphores,
         }
@@ -70,13 +78,12 @@ where
     /// All submits for this call must be of the same type.
     /// Submission will be automatically promoted to to the minimum required capability
     /// to hold all passed submits.
-    pub fn submit<I, S, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
+    pub fn submit<I, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result, S>
     where
-        I: Iterator<Item=S>,
-        S: Submittable<B, K, Primary>,
-        (C, K): Upper
+        I: IntoIterator<Item=S>,
+        (C, K): Upper,
     {
-        self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.into_buffer() }));
+        self.cmd_buffers.extend(submits);
         Submission {
             cmd_buffers: self.cmd_buffers,
             wait_semaphores: self.wait_semaphores,
@@ -89,7 +96,7 @@ where
     ///
     /// Submission promotion is only necessary for shoving multiple submissions
     /// of different capabilities into one submit call.
-    pub fn promote<P>(self) -> Submission<'a, B, P>
+    pub fn promote<P>(self) -> Submission<'a, B, P, S>
     where
         P: Supports<C>
     {

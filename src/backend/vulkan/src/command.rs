@@ -86,7 +86,7 @@ impl CommandBuffer {
 }
 
 impl com::RawCommandBuffer<Backend> for CommandBuffer {
-    fn begin(&mut self) {
+    fn begin(&mut self, _flags: com::CommandBufferFlags) {
         let info = vk::CommandBufferBeginInfo {
             s_type: vk::StructureType::CommandBufferBeginInfo,
             p_next: ptr::null(),
@@ -895,6 +895,16 @@ impl com::RawCommandBuffer<Backend> for CommandBuffer {
                 constants,
             );
         }
+    }
+
+    fn execute_commands<I>(
+        &mut self,
+        buffers: I,
+    ) where
+        I: IntoIterator,
+        I::Item: Borrow<CommandBuffer>
+    {
+        unimplemented!()
     }
 }
 
