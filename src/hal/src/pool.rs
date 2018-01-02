@@ -1,7 +1,9 @@
 //! Command pools
 
 use {Backend};
-use command::{CommandBuffer, RawCommandBuffer, SecondaryCommandBuffer, };
+use command::{
+    CommandBuffer, RawCommandBuffer, SecondaryCommandBuffer, CommandBufferFlags, Shot
+};
 use std::marker::PhantomData;
 
 bitflags!(
@@ -77,12 +79,12 @@ impl<B: Backend, C> CommandPool<B, C> {
     /// You can only record to one command buffer per pool at the same time.
     /// If more command buffers are requested than allocated, new buffers will be reserved.
     /// The command buffer will be returned in 'recording' state.
-    pub fn acquire_command_buffer<S: Shot = OneShot>(&mut self, allow_pending_resubmit: bool) -> CommandBuffer<B, C, S> {
+    pub fn acquire_command_buffer<S: Shot>(&mut self, allow_pending_resubmit: bool) -> CommandBuffer<B, C, S> {
         self.reserve(1);
 
         let buffer = &mut self.buffers[self.next_buffer];
-        let flags = S::flags();
-        if(allow_pending_resubmit) {
+        let mut flags = S::flags();
+        if allow_pending_resubmit {
             flags |= CommandBufferFlags::SIMULTANEOUS_USE;
         }
         buffer.begin(flags);
@@ -97,18 +99,18 @@ impl<B: Backend, C> CommandPool<B, C> {
     /// You can only record to one command buffer per pool at the same time.
     /// If more command buffers are requested than allocated, new buffers will be reserved.
     /// The command buffer will be returned in 'recording' state.
-    pub fn acquire_secondary_command_buffer<S: Shot = OneShot>(&mut self, allow_pending_resubmit: bool) -> SecondaryCommandBuffer<B, C, S> {
+    pub fn acquire_secondary_command_buffer<S: Shot>(&mut self, allow_pending_resubmit: bool) -> SecondaryCommandBuffer<B, C, S> {
         self.reserve(1);
 
         let buffer = &mut self.buffers[self.next_buffer];
-        let flags = S::flags();
-        if(allow_pending_resubmit) {
+        let mut flags = S::flags();
+        if allow_pending_resubmit {
             flags |= CommandBufferFlags::SIMULTANEOUS_USE;
         }
         buffer.begin(flags);
         self.next_buffer += 1;
         unsafe {
-            ReusableCommandBuffer::new(buffer)
+            SecondaryCommandBuffer::new(buffer)
         }
     }
 

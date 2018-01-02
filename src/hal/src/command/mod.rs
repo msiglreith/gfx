@@ -10,16 +10,16 @@ mod raw;
 mod renderpass;
 mod transfer;
 
-use self::raw::CommandBufferFlags;
 
 pub use self::graphics::*;
-pub use self::raw::RawCommandBuffer;
+pub use self::raw::{RawCommandBuffer, CommandBufferFlags};
 pub use self::renderpass::*;
 pub use self::transfer::*;
 
 /// Trait indicating how many times a Submit can be submitted.
 pub trait Shot { 
-    fn once() -> raw::CommandBufferFlags;
+    ///
+    fn flags() -> CommandBufferFlags;
 }
 /// Indicates a Submit that can only be submitted once.
 pub enum OneShot { }
@@ -30,15 +30,17 @@ impl Shot for MultiShot { fn flags() -> CommandBufferFlags { Default::default() 
 
 /// A trait indicating the level of a command buffer.
 pub trait Level { }
+/// Indicates a primary command buffer.
 pub enum Primary { }
 impl Level for Primary { }
+/// Indicates a secondary command buffer.
 pub enum Secondary { }
 impl Level for Secondary { }
 
 /// A trait representing a command buffer that can be added to a `Submission`.
 pub unsafe trait Submittable<B: Backend, C, L: Level> {
     ///
-    unsafe fn get_buffer(self) -> B::CommandBuffer;
+    unsafe fn into_buffer(self) -> B::CommandBuffer;
 }
 
 /// Thread-safe finished command buffer for submission.
@@ -48,6 +50,17 @@ pub struct Submit<B: Backend, C, S: Shot, L: Level> {
     pub(crate) _shot: PhantomData<S>,
     pub(crate) _level: PhantomData<L>
 }
+impl<B: Backend, C, S: Shot, L: Level> Submit<B, C, S, L> {
+    fn new(buffer: B::CommandBuffer) -> Self {
+        Submit {
+            buffer: buffer,
+            _capability: PhantomData,
+            _shot: PhantomData,
+            _level: PhantomData,
+        }
+    }
+}
+
 unsafe impl<B: Backend, C, L: Level> Submittable<B, C, L> for Submit<B, C, OneShot, L> {
     unsafe fn into_buffer(self) -> B::CommandBuffer { self.buffer }
 }
@@ -74,6 +87,7 @@ impl<'a, B: Backend, C, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
             raw,
             _capability: PhantomData,
             _shot_type: PhantomData,
+            _level: PhantomData,
         }
     }
 
@@ -82,7 +96,7 @@ impl<'a, B: Backend, C, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
     /// The command buffer will be consumed and can't be modified further.
     /// The command pool must be reset to able to re-record commands.
     pub fn finish(self) -> Submit<B, C, S, L> {
-        Submit(self.raw, PhantomData, PhantomData, PhantomData)
+        Submit::new(self.raw.clone())
     }
 
     /// Downgrade a command buffer to a lesser capability type.
@@ -99,13 +113,13 @@ impl<'a, B: Backend, C, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
 
 impl<'a, B: Backend, C, S: Shot> CommandBuffer<'a, B, C, S, Primary> {
     ///
-    pub fn execute_commands<I, S, K>(&mut self, submits: I) 
+    pub fn execute_commands<I, Z, K>(&mut self, submits: I) 
     where
-        I: Iterator<Item=S>,
-        S: Submittable<B, K, Secondary>,
+        I: Iterator<Item=Z>,
+        Z: Submittable<B, K, Secondary>,
         C: Supports<K>,
     {
-        self.0.execute_commands(&submits
+        self.raw.execute_commands(&submits
             .map(|submit| unsafe { submit.into_buffer() })
             .collect::<Vec<_>>()
         );

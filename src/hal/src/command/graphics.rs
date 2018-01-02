@@ -7,7 +7,10 @@ use buffer::IndexBufferView;
 use image::{ImageLayout, SubresourceRange};
 use query::{Query, QueryControl, QueryId};
 use queue::capability::{Graphics, GraphicsOrCompute, Supports};
-use super::{CommandBuffer, RawCommandBuffer, Shot, RenderPassInlineEncoder};
+use super::{
+    CommandBuffer, RawCommandBuffer, RenderPassInlineEncoder, 
+    RenderPassSecondaryEncoder, Shot, Level, Primary,
+};
 
 
 #[allow(missing_docs)]
@@ -119,7 +122,7 @@ pub enum AttachmentClear {
     DepthStencil(ClearDepthStencil),
 }
 
-impl<'a, B: Backend, C: Supports<Graphics>, S: Shot> CommandBuffer<'a, B, C, S> {
+impl<'a, B: Backend, C: Supports<Graphics>, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
     ///
     pub fn begin_renderpass_inline<T>(
         &mut self,
@@ -127,21 +130,7 @@ impl<'a, B: Backend, C: Supports<Graphics>, S: Shot> CommandBuffer<'a, B, C, S> 
         frame_buffer: &B::Framebuffer,
         render_area: Rect,
         clear_values: T,
-    ) -> RenderPassInlineEncoder<B>
-    where
-        T: IntoIterator,
-        T::Item: Borrow<ClearValue>,
-    {
-        RenderPassInlineEncoder::new(self, render_pass, frame_buffer, render_area, clear_values)
-    }
-
-    pub fn begin_renderpass_secondary<T>(
-        &mut self,
-        render_pass: &B::RenderPass,
-        frame_buffer: &B::Framebuffer,
-        render_area: Rect,
-        clear_values: T,
-    ) -> RenderPassSecondaryEncoder<B>
+    ) -> RenderPassInlineEncoder<B, L>
     where
         T: IntoIterator,
         T::Item: Borrow<ClearValue>,
@@ -233,7 +222,24 @@ impl<'a, B: Backend, C: Supports<Graphics>, S: Shot> CommandBuffer<'a, B, C, S> 
     }
 }
 
-impl<'a, B: Backend, C: Supports<GraphicsOrCompute>, S: Shot> CommandBuffer<'a, B, C, S> {
+impl<'a, B: Backend, C: Supports<Graphics>, S: Shot> CommandBuffer<'a, B, C, S, Primary> {
+    ///
+    pub fn begin_renderpass_secondary<T>(
+        &mut self,
+        render_pass: &B::RenderPass,
+        frame_buffer: &B::Framebuffer,
+        render_area: Rect,
+        clear_values: T,
+    ) -> RenderPassSecondaryEncoder<B>
+    where
+        T: IntoIterator,
+        T::Item: Borrow<ClearValue>,
+    {
+        RenderPassSecondaryEncoder::new(self, render_pass, frame_buffer, render_area, clear_values)
+    }
+}
+
+impl<'a, B: Backend, C: Supports<GraphicsOrCompute>, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
     ///
     pub fn begin_query(&mut self, query: Query<B>, flags: QueryControl) {
         self.raw.begin_query(query, flags)

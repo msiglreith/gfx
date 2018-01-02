@@ -3,7 +3,7 @@
 //! // TODO
 
 use {pso, Backend};
-use command::Submittable;
+use command::{Submittable, Primary};
 use super::capability::{Transfer, Supports, Upper};
 use std::marker::PhantomData;
 use smallvec::SmallVec;

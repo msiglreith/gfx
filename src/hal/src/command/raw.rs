@@ -14,10 +14,16 @@ use super::{
 };
 
 bitflags! {
+    ///
     #[derive(Default)]
     pub struct CommandBufferFlags: u16 {
+        ///
         const ONE_TIME_SUBMIT = 0x1;
+
+        ///
         const RENDER_PASS_CONTINUE = 0x2;
+
+        ///
         const SIMULTANEOUS_USE = 0x4;
     }
 }
