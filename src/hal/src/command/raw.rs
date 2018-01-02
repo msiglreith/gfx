@@ -18,6 +18,9 @@ bitflags! {
     #[derive(Default)]
     pub struct CommandBufferFlags: u16 {
         ///
+        const EMPTY = 0x0;
+
+        ///
         const ONE_TIME_SUBMIT = 0x1;
 
         ///
@@ -343,8 +346,9 @@ pub trait RawCommandBuffer<B: Backend>: Clone + Send {
     );
 
     ///
-    fn execute_commands(
+    fn execute_commands<I>(
         &mut self,
-        buffers: &[B::CommandBuffer],
-    );
+        buffers: I,
+    ) where 
+        I: Iterator<Item=B::CommandBuffer>;
 }

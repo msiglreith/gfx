@@ -19,14 +19,14 @@ pub use self::transfer::*;
 /// Trait indicating how many times a Submit can be submitted.
 pub trait Shot { 
     ///
-    fn flags() -> CommandBufferFlags;
+    const FLAGS: CommandBufferFlags;
 }
 /// Indicates a Submit that can only be submitted once.
 pub enum OneShot { }
-impl Shot for OneShot { fn flags() -> CommandBufferFlags { CommandBufferFlags::ONE_TIME_SUBMIT } }
+impl Shot for OneShot { const FLAGS: CommandBufferFlags = CommandBufferFlags::ONE_TIME_SUBMIT; }
 /// Indicates a Submit that can be submitted multiple times.
 pub enum MultiShot { }
-impl Shot for MultiShot { fn flags() -> CommandBufferFlags { Default::default() } }
+impl Shot for MultiShot { const FLAGS: CommandBufferFlags = CommandBufferFlags::EMPTY; }
 
 /// A trait indicating the level of a command buffer.
 pub trait Level { }
@@ -44,28 +44,18 @@ pub unsafe trait Submittable<B: Backend, C, L: Level> {
 }
 
 /// Thread-safe finished command buffer for submission.
-pub struct Submit<B: Backend, C, S: Shot, L: Level> {
-    pub(crate) buffer:  B::CommandBuffer,
-    pub(crate) _capability: PhantomData<C>,
-    pub(crate) _shot: PhantomData<S>,
-    pub(crate) _level: PhantomData<L>
-}
+pub struct Submit<B: Backend, C, S: Shot, L: Level>(pub(crate) B::CommandBuffer, pub(crate) PhantomData<(C, S, L)>);
 impl<B: Backend, C, S: Shot, L: Level> Submit<B, C, S, L> {
     fn new(buffer: B::CommandBuffer) -> Self {
-        Submit {
-            buffer: buffer,
-            _capability: PhantomData,
-            _shot: PhantomData,
-            _level: PhantomData,
-        }
+        Submit(buffer, PhantomData)
     }
 }
 
 unsafe impl<B: Backend, C, L: Level> Submittable<B, C, L> for Submit<B, C, OneShot, L> {
-    unsafe fn into_buffer(self) -> B::CommandBuffer { self.buffer }
+    unsafe fn into_buffer(self) -> B::CommandBuffer { self.0 }
 }
 unsafe impl<'a, B: Backend, C, L: Level> Submittable<B, C, L> for &'a Submit<B, C, MultiShot, L> {
-    unsafe fn into_buffer(self) -> B::CommandBuffer { self.buffer.clone() }
+    unsafe fn into_buffer(self) -> B::CommandBuffer { self.0.clone() }
 }
 unsafe impl<B: Backend, C, S: Shot, L: Level> Send for Submit<B, C, S, L> {}
 
@@ -74,20 +64,16 @@ pub type SecondaryCommandBuffer<'a, B: Backend, C, S: Shot = OneShot> = CommandB
 
 /// Command buffer with compute, graphics and transfer functionality.
 pub struct CommandBuffer<'a, B: Backend, C, S: Shot = OneShot, L: Level = Primary> {
-    pub(crate) raw: &'a mut B::CommandBuffer,
-    _capability: PhantomData<C>,
-    _shot_type: PhantomData<S>,
-    _level: PhantomData<L>,
+    pub(crate) raw: &'a mut B::CommandBuffer, 
+    pub(crate) _marker: PhantomData<(C, S, L)>
 }
 
 impl<'a, B: Backend, C, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
     /// Create a new typed command buffer from a raw command pool.
     pub unsafe fn new(raw: &'a mut B::CommandBuffer) -> Self {
         CommandBuffer {
-            raw,
-            _capability: PhantomData,
-            _shot_type: PhantomData,
-            _level: PhantomData,
+            raw: raw, 
+            _marker: PhantomData,
         }
     }
 
@@ -113,16 +99,13 @@ impl<'a, B: Backend, C, S: Shot, L: Level> CommandBuffer<'a, B, C, S, L> {
 
 impl<'a, B: Backend, C, S: Shot> CommandBuffer<'a, B, C, S, Primary> {
     ///
-    pub fn execute_commands<I, Z, K>(&mut self, submits: I) 
+    pub fn execute_commands<I, K>(&mut self, submits: I) 
     where
-        I: Iterator<Item=Z>,
-        Z: Submittable<B, K, Secondary>,
+        I: Iterator,
+        I::Item: Submittable<B, K, Secondary>,
         C: Supports<K>,
     {
-        self.raw.execute_commands(&submits
-            .map(|submit| unsafe { submit.into_buffer() })
-            .collect::<Vec<_>>()
-        );
+        self.raw.execute_commands(submits.map(|submit| unsafe { submit.into_buffer() }));
     }
 }
 

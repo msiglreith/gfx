@@ -83,7 +83,7 @@ impl<B: Backend, C> CommandPool<B, C> {
         self.reserve(1);
 
         let buffer = &mut self.buffers[self.next_buffer];
-        let mut flags = S::flags();
+        let mut flags = S::FLAGS;
         if allow_pending_resubmit {
             flags |= CommandBufferFlags::SIMULTANEOUS_USE;
         }
@@ -103,7 +103,7 @@ impl<B: Backend, C> CommandPool<B, C> {
         self.reserve(1);
 
         let buffer = &mut self.buffers[self.next_buffer];
-        let mut flags = S::flags();
+        let mut flags = S::FLAGS;
         if allow_pending_resubmit {
             flags |= CommandBufferFlags::SIMULTANEOUS_USE;
         }

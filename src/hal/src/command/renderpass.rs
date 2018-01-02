@@ -198,7 +198,8 @@ impl<'a, B: Backend> RenderPassSecondaryEncoder<'a, B> {
             frame_buffer,
             render_area,
             clear_values,
-            SubpassContents::SecondaryBuffers);
+            SubpassContents::SecondaryBuffers
+        );
         RenderPassSecondaryEncoder(Some(cmd_buffer.raw))
     }
 
@@ -223,10 +224,7 @@ impl<'a, B: Backend> RenderPassSecondaryEncoder<'a, B> {
         I: Iterator<Item=S>,
         S: Submittable<B, Subpass, Secondary>,
     {
-        self.get_buffer().execute_commands(&submits
-            .map(|submit| unsafe { submit.into_buffer() })
-            .collect::<Vec<_>>()
-        );
+        self.get_buffer().execute_commands(submits.map(|submit| unsafe { submit.into_buffer() }));
     }
 }
 
