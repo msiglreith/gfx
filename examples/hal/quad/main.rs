@@ -455,7 +455,7 @@ fn main() {
     // copy buffer to texture
     {
         let submit = {
-            let mut cmd_buffer = command_pool.acquire_command_buffer();
+            let mut cmd_buffer = command_pool.acquire_command_buffer(false);
 
             let image_barrier = m::Barrier::Image {
                 states: (i::Access::empty(), i::ImageLayout::Undefined) ..
@@ -494,7 +494,7 @@ fn main() {
         };
 
         let submission = Submission::new()
-            .submit(&[submit]);
+            .submit(vec![submit]);
         queue.submit(submission, Some(&mut frame_fence));
 
         device.wait_for_fences(&[&frame_fence], d::WaitFor::All, !0);
@@ -523,7 +523,7 @@ fn main() {
 
         // Rendering
         let submit = {
-            let mut cmd_buffer = command_pool.acquire_command_buffer();
+            let mut cmd_buffer = command_pool.acquire_command_buffer(false);
 
             cmd_buffer.set_viewports(&[viewport.clone()]);
             cmd_buffer.set_scissors(&[viewport.rect]);
@@ -546,7 +546,7 @@ fn main() {
 
         let submission = Submission::new()
             .wait_on(&[(&mut frame_semaphore, PipelineStage::BOTTOM_OF_PIPE)])
-            .submit(&[submit]);
+            .submit(vec![submit]);
         queue.submit(submission, Some(&mut frame_fence));
 
         // TODO: replace with semaphore

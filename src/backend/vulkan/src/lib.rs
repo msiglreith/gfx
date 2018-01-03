@@ -25,7 +25,9 @@ use ash::version::{EntryV1_0, DeviceV1_0, InstanceV1_0, V1_0};
 use ash::vk;
 use hal::{format, memory};
 use hal::{Features, Limits, PatchSize, QueueType};
+
 use std::{fmt, mem, ptr};
+use std::borrow::Borrow;
 use std::ffi::{CStr, CString};
 use std::sync::Arc;
 
@@ -504,13 +506,17 @@ pub struct CommandQueue {
 }
 
 impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
-    unsafe fn submit_raw(&mut self,
-        submission: hal::queue::RawSubmission<Backend>,
+    unsafe fn submit_raw<IC>(&mut self,
+        submission: hal::queue::RawSubmission<Backend, IC>,
         fence: Option<&native::Fence>,
-    ) {
+    )
+    where
+        IC: IntoIterator,
+        IC::Item: Borrow<command::CommandBuffer>,
+    {
         let buffers = submission.cmd_buffers
-            .iter()
-            .map(|cmd| cmd.raw)
+            .into_iter()
+            .map(|cmd| cmd.borrow().raw)
             .collect::<Vec<_>>();
         let waits = submission.wait_semaphores
             .iter()

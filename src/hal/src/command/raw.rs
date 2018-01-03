@@ -346,9 +346,9 @@ pub trait RawCommandBuffer<B: Backend>: Clone + Send {
     );
 
     ///
-    fn execute_commands<I>(
+    fn execute_commands<'a, I>(
         &mut self,
         buffers: I,
-    ) where 
-        I: Iterator<Item=B::CommandBuffer>;
+    ) where
+        I: Iterator<Item=&'a B::CommandBuffer>;
 }

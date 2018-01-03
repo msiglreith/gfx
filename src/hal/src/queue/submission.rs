@@ -3,24 +3,34 @@
 //! // TODO
 
 use {pso, Backend};
-use command::{Submittable, Primary};
+use command::{Submit, OneShot, MultiShot, Primary};
 use super::capability::{Transfer, Supports, Upper};
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 use smallvec::SmallVec;
 
 /// Raw submission information for a command queue.
-pub struct RawSubmission<'a, B: Backend + 'a> {
+pub struct RawSubmission<'a, B: Backend + 'a, IC>
+where
+    IC: IntoIterator,
+    IC::Item: Borrow<B::CommandBuffer>,
+{
     /// Command buffers to submit.
-    pub cmd_buffers: &'a [B::CommandBuffer],
+    pub cmd_buffers: IC,
     /// Semaphores to wait being signalled before submission.
     pub wait_semaphores: &'a [(&'a B::Semaphore, pso::PipelineStage)],
     /// Semaphores which get signalled after submission.
     pub signal_semaphores: &'a [&'a B::Semaphore],
 }
 
+enum Submits<'a, B: Backend> {
+    Owned(B::CommandBuffer),
+    Ref(&'a B::CommandBuffer),
+}
+
 /// Submission information for a command queue.
 pub struct Submission<'a, B: Backend, C> {
-    cmd_buffers: SmallVec<[B::CommandBuffer; 16]>,
+    cmd_buffers: SmallVec<[Submits<'a, B>; 16]>,
     wait_semaphores: SmallVec<[(&'a B::Semaphore, pso::PipelineStage); 16]>,
     signal_semaphores: SmallVec<[&'a B::Semaphore; 16]>,
     marker: PhantomData<C>,
@@ -57,9 +67,15 @@ where
     }
 
     /// Convert strong-typed submission object into untyped equivalent.
-    pub(super) fn as_raw(&self) -> RawSubmission<B> {
+    pub(super) fn as_raw(&self) -> RawSubmission<B, Vec<&B::CommandBuffer>> {
+        let cmd_buffers = self.cmd_buffers.iter().map(|buffer| {
+            match *buffer {
+                Submits::Owned(ref buffer) => buffer,
+                Submits::Ref(buffer) => buffer,
+            }
+        }).collect::<Vec<_>>();
         RawSubmission {
-            cmd_buffers: &self.cmd_buffers,
+            cmd_buffers: cmd_buffers,
             wait_semaphores: &self.wait_semaphores,
             signal_semaphores: &self.signal_semaphores,
         }
@@ -72,11 +88,30 @@ where
     /// to hold all passed submits.
     pub fn submit<I, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
     where
-        I: Iterator,
-        I::Item: Submittable<B, K, Primary>,
+        I: IntoIterator<Item=Submit<B, K, OneShot, Primary>>,
         (C, K): Upper
     {
-        self.cmd_buffers.extend(submits.map(|submit| unsafe { submit.into_buffer() }));
+        self.cmd_buffers.extend(submits.into_iter().map(|submit| Submits::Owned(submit.0)));
+        Submission {
+            cmd_buffers: self.cmd_buffers,
+            wait_semaphores: self.wait_semaphores,
+            signal_semaphores: self.signal_semaphores,
+            marker: PhantomData,
+        }
+    }
+
+    /// Append a new list of finished command buffers to this submission.
+    ///
+    /// All submits for this call must be of the same type.
+    /// Submission will be automatically promoted to to the minimum required capability
+    /// to hold all passed submits.
+    pub fn submit_reusables<I, K>(mut self, submits: I) -> Submission<'a, B, <(C, K) as Upper>::Result>
+    where
+        I: IntoIterator<Item = &'a Submit<B, K, MultiShot, Primary>>,
+        K: 'a,
+        (C, K): Upper
+    {
+        self.cmd_buffers.extend(submits.into_iter().map(|submit| Submits::Ref(&submit.0)));
         Submission {
             cmd_buffers: self.cmd_buffers,
             wait_semaphores: self.wait_semaphores,

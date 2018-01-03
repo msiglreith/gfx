@@ -214,12 +214,13 @@ impl<'a, B: Backend> RenderPassSecondaryEncoder<'a, B> {
     }
 
     ///
-    pub fn execute_commands<I, S>(&mut self, submits: I) 
+    pub fn execute_commands<I, S>(&mut self, submits: I)
     where
-        I: Iterator<Item=S>,
+        I: IntoIterator<Item=S>,
         S: Submittable<B, Subpass, Secondary>,
     {
-        self.0.as_mut().unwrap().execute_commands(submits.map(|submit| unsafe { submit.into_buffer() }));
+        let submits = submits.into_iter().map(|submit| submit).collect::<Vec<_>>();
+        self.0.as_mut().unwrap().execute_commands(submits.iter().map(|submit| unsafe { submit.as_buffer() }));
     }
 
     ///
@@ -277,4 +278,3 @@ impl<B: Backend, S: Shot> Drop for SubpassCommandBuffer<B, S> {
         (self.0).0.finish();
     }
 }
-
