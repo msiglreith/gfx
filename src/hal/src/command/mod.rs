@@ -104,7 +104,7 @@ impl<'a, B: Backend, C, S: Shot> CommandBuffer<'a, B, C, S, Primary> {
         I::Item: Submittable<B, K, Secondary>,
         C: Supports<K>,
     {
-        let submits = submits.into_iter().map(|submit| submit).collect::<Vec<_>>();
+        let submits = submits.into_iter().collect::<Vec<_>>();
         self.raw.execute_commands(submits.iter().map(|submit| unsafe { submit.as_buffer() }));
     }
 }

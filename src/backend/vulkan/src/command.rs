@@ -901,7 +901,8 @@ impl com::RawCommandBuffer<Backend> for CommandBuffer {
         &mut self,
         buffers: I,
     ) where
-        I: Iterator<Item=&'a CommandBuffer>
+        I: IntoIterator,
+        I::Item: Borrow<CommandBuffer>,
     {
         unimplemented!()
     }

@@ -494,7 +494,7 @@ fn main() {
         };
 
         let submission = Submission::new()
-            .submit(vec![submit]);
+            .submit(Some(submit));
         queue.submit(submission, Some(&mut frame_fence));
 
         device.wait_for_fences(&[&frame_fence], d::WaitFor::All, !0);
@@ -546,7 +546,7 @@ fn main() {
 
         let submission = Submission::new()
             .wait_on(&[(&mut frame_semaphore, PipelineStage::BOTTOM_OF_PIPE)])
-            .submit(vec![submit]);
+            .submit(Some(submit));
         queue.submit(submission, Some(&mut frame_fence));
 
         // TODO: replace with semaphore
