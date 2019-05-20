@@ -11,12 +11,15 @@ readme = "README.md"
 documentation = "https://docs.rs/gfx-backend-gl"
 workspace = "../../.."
 edition = "2018"
+build = "build.rs"
 
 [lib]
 name = "gfx_backend_gl"
 
 [features]
-default = ["glutin"]
+egl = ["glutin_egl_sys"]
+wgl = []
+default = ["winit"]
 
 [dependencies]
 bitflags = "1"
@@ -24,5 +27,14 @@ log = { version = "0.4" }
 gfx_gl = "0.5"
 gfx-hal = { path = "../../hal", version = "0.2" }
 smallvec = "0.6"
-glutin = { version = "0.20", optional = true }
 spirv_cross = "0.12.1"
+glutin_egl_sys = { version = "0.1", optional = true }
+winit = { version = "0.19", optional = true }
+lazy_static = "1"
+libloading = "0.5"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3" }
+
+[build-dependencies]
+gl_generator = "0.11"

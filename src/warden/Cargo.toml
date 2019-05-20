@@ -54,7 +54,6 @@ optional = true
 [dependencies.gfx-backend-gl]
 path = "../../src/backend/gl"
 version = "0.2"
-features = ["glutin"]
 optional = true
 
 [[example]]

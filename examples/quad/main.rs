@@ -86,28 +86,12 @@ fn main() {
             DIMS.height as _,
         ))
         .with_title("quad".to_string());
-    // instantiate backend
-    #[cfg(not(feature = "gl"))]
-    let (_window, _instance, mut adapters, mut surface) = {
-        let window = wb.build(&events_loop).unwrap();
-        let instance = back::Instance::create("gfx-rs quad", 1);
-        let surface = instance.create_surface(&window);
-        let adapters = instance.enumerate_adapters();
-        (window, instance, adapters, surface)
-    };
-    #[cfg(feature = "gl")]
-    let (mut adapters, mut surface) = {
-        let window = {
-            let builder =
-                back::config_context(back::glutin::ContextBuilder::new(), ColorFormat::SELF, None)
-                    .with_vsync(true);
-            back::glutin::WindowedContext::new_windowed(wb, builder, &events_loop).unwrap()
-        };
 
-        let surface = back::Surface::from_window(window);
-        let adapters = surface.enumerate_adapters();
-        (adapters, surface)
-    };
+    let window = wb.build(&events_loop).unwrap();
+
+    let instance = back::Instance::create("gfx-rs quad", 1);
+    let surface = instance.create_surface(&window);
+    let adapters = instance.enumerate_adapters();
 
     for adapter in &adapters {
         println!("{:?}", adapter.info);
@@ -643,10 +627,6 @@ fn main() {
                     | winit::WindowEvent::CloseRequested => running = false,
                     winit::WindowEvent::Resized(dims) => {
                         println!("resized to {:?}", dims);
-                        #[cfg(feature = "gl")]
-                        surface
-                            .get_window()
-                            .resize(dims.to_physical(surface.get_window().get_hidpi_factor()));
                         recreate_swapchain = true;
                         resize_dims.width = dims.width as u32;
                         resize_dims.height = dims.height as u32;

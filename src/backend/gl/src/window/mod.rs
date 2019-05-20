@@ -1,2 +1,4 @@
-#[cfg(feature = "glutin")]
-pub mod glutin;
+#[cfg(feature = "egl")]
+pub mod egl;
+#[cfg(feature = "wgl")]
+pub mod wgl;

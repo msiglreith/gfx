@@ -445,14 +445,15 @@ pub(crate) fn query_all(gl: &GlContainer) -> (Info, Features, LegacyFeatures, Li
         framebuffer: info.is_supported(&[Core(3, 0), Es(2, 0), Ext("GL_ARB_framebuffer_object")])
             && gl.GenFramebuffers.is_loaded(),
         framebuffer_texture: info.is_supported(&[Core(3, 0)]), //TODO: double check
-        buffer_role_change: !info.version.is_embedded,
+        buffer_role_change: true, // !info.version.is_embedded,
         image_storage: info.is_supported(&[Core(4, 2), Ext("GL_ARB_texture_storage")]),
         buffer_storage: info.is_supported(&[Core(4, 4), Ext("GL_ARB_buffer_storage")]),
         clear_buffer: info.is_supported(&[Core(3, 0), Es(3, 0)]),
         program_interface: info.is_supported(&[Core(4, 3), Ext("GL_ARB_program_interface_query")]),
         frag_data_location: !info.version.is_embedded,
         sync: info.is_supported(&[Core(3, 2), Es(3, 0), Ext("GL_ARB_sync")]),
-        map: !info.version.is_embedded, //TODO: OES extension
+        map:                                info.is_supported(&[Core(3,0),
+                                                                Es  (3,0)]),
         sampler_anisotropy_ext: !info
             .is_supported(&[Core(4, 6), Ext("GL_ARB_texture_filter_anisotropic")])
             && info.is_supported(&[Ext("GL_EXT_texture_filter_anisotropic")]),

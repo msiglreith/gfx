@@ -9,10 +9,19 @@ extern crate bitflags;
 extern crate log;
 extern crate gfx_gl as gl;
 extern crate gfx_hal as hal;
-#[cfg(feature = "glutin")]
-pub extern crate glutin;
 extern crate smallvec;
 extern crate spirv_cross;
+
+#[macro_use]
+extern crate lazy_static;
+
+#[cfg(feature = "winit")]
+pub extern crate winit;
+
+#[cfg(feature = "egl")]
+extern crate glutin_egl_sys as egl_sys;
+extern crate winapi;
+
 
 use std::cell::Cell;
 use std::fmt;
@@ -36,8 +45,10 @@ mod queue;
 mod state;
 mod window;
 
-#[cfg(feature = "glutin")]
-pub use crate::window::glutin::{config_context, Headless, Surface, Swapchain};
+#[cfg(feature = "egl")]
+pub use window::egl::{Surface, Swapchain, Instance};
+#[cfg(feature = "wgl")]
+pub use window::wgl::{Surface, Swapchain, Instance, wgl_sys::types::HGLRC};
 
 pub(crate) struct GlContainer {
     context: gl::Gl,
@@ -125,6 +136,7 @@ impl Error {
 /// Internal struct of shared data between the physical and logical device.
 struct Share {
     context: GlContainer,
+    ctxt: HGLRC,
     info: Info,
     features: hal::Features,
     legacy_features: info::LegacyFeatures,
@@ -235,7 +247,7 @@ unsafe impl<T: ?Sized> Sync for Wstarc<T> {}
 pub struct PhysicalDevice(Starc<Share>);
 
 impl PhysicalDevice {
-    fn new_adapter<F>(fn_proc: F) -> hal::Adapter<Backend>
+    fn new_adapter<F>(ctxt: HGLRC, fn_proc: F) -> hal::Adapter<Backend>
     where
         F: FnMut(&str) -> *const std::os::raw::c_void,
     {
@@ -262,6 +274,7 @@ impl PhysicalDevice {
         // create the shared context
         let share = Share {
             context: gl,
+            ctxt,
             info,
             features,
             legacy_features,

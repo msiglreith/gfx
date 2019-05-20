@@ -12,6 +12,9 @@ use crate::info::LegacyFeatures;
 use crate::{command as com, device, native, state, window};
 use crate::{Backend, Share};
 
+use winapi::um::wingdi::SwapBuffers;
+use winapi::um::wingdi::wglMakeCurrent;
+
 pub type ArrayBuffer = gl::types::GLuint;
 
 // State caching system for command queue.
@@ -790,13 +793,13 @@ impl CommandQueue {
                         _ => panic!("Unsupported uniform datatype!"),
                     }
                 }
-            } 
-            com::Command::BindRasterizer { rasterizer } => { 
+            }
+            com::Command::BindRasterizer { rasterizer } => {
                 use crate::hal::pso::FrontFace::*;
                 use crate::hal::pso::PolygonMode::*;
-                
+
                 let gl = &self.share.context;
-                
+
                 unsafe {
                     gl.FrontFace(match rasterizer.front_face {
                         Clockwise => gl::CW,
@@ -846,9 +849,9 @@ impl CommandQueue {
             }
             com::Command::BindDepth { depth } => {
                 use crate::hal::pso::Comparison::*;
-                
+
                 let gl = &self.share.context;
-                
+
                 match depth {
                     hal::pso::DepthTest::On { fun, write } => unsafe {
                         gl.Enable(gl::DEPTH_TEST);
@@ -1018,6 +1021,56 @@ impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
 
             swapchain.0.borrow().window.swap_buffers().unwrap();
         }
+
+        Ok(None)
+    }
+
+    #[cfg(feature = "egl")]
+    unsafe fn present<'a, W, Is, S, Iw>(&mut self, swapchains: Is, _wait_semaphores: Iw) -> Result<Option<hal::window::Suboptimal>, hal::window::PresentError>
+    where
+        W: 'a + Borrow<window::egl::Swapchain>,
+        Is: IntoIterator<Item = (&'a W, hal::SwapImageIndex)>,
+        S: 'a + Borrow<native::Semaphore>,
+        Iw: IntoIterator<Item = &'a S>,
+    {
+        unimplemented!()
+    }
+
+    #[cfg(feature = "wgl")]
+    unsafe fn present<'a, W, Is, S, Iw>(&mut self, swapchains: Is, _wait_semaphores: Iw) -> Result<Option<hal::window::Suboptimal>, hal::window::PresentError>
+    where
+        W: 'a + Borrow<window::wgl::Swapchain>,
+        Is: IntoIterator<Item = (&'a W, hal::SwapImageIndex)>,
+        S: 'a + Borrow<native::Semaphore>,
+        Iw: IntoIterator<Item = &'a S>,
+    {
+        let gl = &self.share.context;
+
+        for swapchain in swapchains {
+            let swapchain = swapchain.0.borrow();
+            let extent = swapchain.extent;
+
+            wglMakeCurrent(swapchain.hdc as *mut _, swapchain.ctxt as *mut _);
+
+            gl.BindFramebuffer(gl::READ_FRAMEBUFFER, swapchain.fbos[0]); // TODO
+            gl.BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
+            gl.BlitFramebuffer(
+                0,
+                0,
+                extent.width as _,
+                extent.height as _,
+                0,
+                0,
+                extent.width as _,
+                extent.height as _,
+                gl::COLOR_BUFFER_BIT,
+                gl::LINEAR,
+            );
+
+            SwapBuffers(swapchain.hdc);
+        }
+
+        wglMakeCurrent(crate::window::wgl::WGL_ENTRY.hdc as *mut _, self.share.ctxt as *mut _);
 
         Ok(None)
     }
