@@ -12,7 +12,9 @@ use crate::info::LegacyFeatures;
 use crate::{command as com, device, native, state, window};
 use crate::{Backend, Share};
 
+#[cfg(feature = "wgl")]
 use winapi::um::wingdi::SwapBuffers;
+#[cfg(feature = "wgl")]
 use winapi::um::wingdi::wglMakeCurrent;
 
 pub type ArrayBuffer = gl::types::GLuint;
@@ -1033,7 +1035,36 @@ impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
         S: 'a + Borrow<native::Semaphore>,
         Iw: IntoIterator<Item = &'a S>,
     {
-        unimplemented!()
+        use crate::window::egl::EGL_ENTRY;
+        let gl = &self.share.context;
+
+        for swapchain in swapchains {
+            let swapchain = swapchain.0.borrow();
+            let extent = swapchain.extent;
+
+            EGL_ENTRY.egl.MakeCurrent(swapchain.display, swapchain.surface, swapchain.surface, swapchain.ctxt);
+
+            gl.BindFramebuffer(gl::READ_FRAMEBUFFER, swapchain.fbos[0]); // TODO
+            gl.BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
+            gl.BlitFramebuffer(
+                0,
+                0,
+                extent.width as _,
+                extent.height as _,
+                0,
+                0,
+                extent.width as _,
+                extent.height as _,
+                gl::COLOR_BUFFER_BIT,
+                gl::LINEAR,
+            );
+
+            EGL_ENTRY.egl.SwapBuffers(swapchain.display, swapchain.surface);
+        }
+
+        EGL_ENTRY.egl.MakeCurrent(EGL_ENTRY.display, EGL_ENTRY.pbuffer, EGL_ENTRY.pbuffer, EGL_ENTRY.context);
+
+        Ok(None)
     }
 
     #[cfg(feature = "wgl")]

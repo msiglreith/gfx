@@ -24,8 +24,11 @@ use crate::pool::{BufferMemory, OwnedBuffer, RawCommandPool};
 use crate::{conv, native as n, state};
 use crate::{Backend as B, Share, Starc, Surface, Swapchain};
 
+#[cfg(feature = "wgl")]
 use winapi::um::winuser::GetDC;
+#[cfg(feature = "wgl")]
 use winapi::um::wingdi::*;
+#[cfg(feature = "wgl")]
 use crate::window::wgl::WGL_ENTRY;
 
 /// Emit error during shader module creation. Used if we don't expect an error
@@ -1671,53 +1674,83 @@ impl d::Device<B> for Device {
 
         let channel = config.format.base_format().1;
 
-        let hdc = dbg!(GetDC(surface.hwnd));
+        #[cfg(feature = "wgl")]
+        {
+            let hdc = dbg!(GetDC(surface.hwnd));
 
-        let wgl = crate::window::wgl::wgl_extra::Wgl::load_with(|sym| {
-            let sym = std::ffi::CString::new(sym.as_bytes()).unwrap();
-            let addr = crate::window::wgl::wgl_sys::GetProcAddress(sym.as_ptr()) as *const ();
-            addr as *const _
-        });
+            let wgl = crate::window::wgl::wgl_extra::Wgl::load_with(|sym| {
+                let sym = std::ffi::CString::new(sym.as_bytes()).unwrap();
+                let addr = crate::window::wgl::wgl_sys::GetProcAddress(sym.as_ptr()) as *const ();
+                addr as *const _
+            });
 
-        let desc = PIXELFORMATDESCRIPTOR {
-            nSize: std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16,
-            nVersion: 1,
-            dwFlags: PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-            iPixelType: PFD_TYPE_RGBA,
-            cColorBits: 32,
-            cRedBits: 0,
-            cRedShift: 0,
-            cGreenBits: 0,
-            cGreenShift: 0,
-            cBlueBits: 0,
-            cBlueShift: 0,
-            cAlphaBits: 8,
-            cAlphaShift: 0,
-            cAccumBits: 0,
-            cAccumRedBits: 0,
-            cAccumGreenBits: 0,
-            cAccumBlueBits: 0,
-            cAccumAlphaBits: 0,
-            cDepthBits: 0,
-            cStencilBits: 0,
-            cAuxBuffers: 0,
-            iLayerType: PFD_MAIN_PLANE,
-            bReserved: 0,
-            dwLayerMask: 0,
-            dwVisibleMask: 0,
-            dwDamageMask: 0,
+            let desc = PIXELFORMATDESCRIPTOR {
+                nSize: std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16,
+                nVersion: 1,
+                dwFlags: PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+                iPixelType: PFD_TYPE_RGBA,
+                cColorBits: 32,
+                cRedBits: 0,
+                cRedShift: 0,
+                cGreenBits: 0,
+                cGreenShift: 0,
+                cBlueBits: 0,
+                cBlueShift: 0,
+                cAlphaBits: 8,
+                cAlphaShift: 0,
+                cAccumBits: 0,
+                cAccumRedBits: 0,
+                cAccumGreenBits: 0,
+                cAccumBlueBits: 0,
+                cAccumAlphaBits: 0,
+                cDepthBits: 0,
+                cStencilBits: 0,
+                cAuxBuffers: 0,
+                iLayerType: PFD_MAIN_PLANE,
+                bReserved: 0,
+                dwLayerMask: 0,
+                dwVisibleMask: 0,
+                dwDamageMask: 0,
+            };
+
+            let format_id = unsafe { ChoosePixelFormat(hdc, &desc) };
+            SetPixelFormat(hdc, format_id, &desc);
+
+            let ctxt = dbg!(wgl.CreateContextAttribsARB(
+                hdc as *const _,
+                self.share.ctxt,
+                ptr::null()
+            ));
+
+            wglMakeCurrent(hdc as *mut _, ctxt as *mut _);
+        }
+
+        #[cfg(unix)]
+        let ctxt = {
+            use crate::window::egl::EGL_ENTRY;
+
+            let mut config = ptr::null();
+            let mut num_configs = 0;
+            let attribs = [
+                egl_sys::egl::SURFACE_TYPE, egl_sys::egl::WINDOW_BIT,
+                egl_sys::egl::NONE
+            ];
+            EGL_ENTRY.egl.ChooseConfig(
+                EGL_ENTRY.display,
+                attribs.as_ptr() as *const _,
+                &mut config as *mut _ as *mut _,
+                1,
+                &mut num_configs,
+            );
+
+            let attribs = [
+                egl_sys::egl::CONTEXT_CLIENT_VERSION, 3,
+                egl_sys::egl::NONE
+            ];
+            let ctxt = dbg!(EGL_ENTRY.egl.CreateContext(EGL_ENTRY.display, config, EGL_ENTRY.context, attribs.as_ptr() as *const _));
+            EGL_ENTRY.egl.MakeCurrent(EGL_ENTRY.display, surface.surface, surface.surface, ctxt);
+            ctxt
         };
-
-        let format_id = unsafe { ChoosePixelFormat(hdc, &desc) };
-        SetPixelFormat(hdc, format_id, &desc);
-
-        let ctxt = dbg!(wgl.CreateContextAttribsARB(
-            hdc as *const _,
-            self.share.ctxt,
-            ptr::null()
-        ));
-
-        wglMakeCurrent(hdc as *mut _, ctxt as *mut _);
 
         let mut fbos = Vec::new();
         let images = (0..config.image_count)
@@ -1817,9 +1850,20 @@ impl d::Device<B> for Device {
             })
             .collect::<Vec<_>>();
 
-        wglMakeCurrent(crate::window::wgl::WGL_ENTRY.hdc as *mut _, self.share.ctxt as *mut _);
+        #[cfg(feature = "wgl")]
+        {
+            wglMakeCurrent(crate::window::wgl::WGL_ENTRY.hdc as *mut _, self.share.ctxt as *mut _);
 
-        Ok((Swapchain { fbos, ctxt: ctxt as *mut _, hdc, extent: config.extent }, images))
+            Ok((Swapchain { fbos, ctxt: ctxt as *mut _, hdc, extent: config.extent }, images))
+        }
+
+        #[cfg(feature = "egl")]
+        {
+            use crate::window::egl::EGL_ENTRY;
+            
+            EGL_ENTRY.egl.MakeCurrent(EGL_ENTRY.display, EGL_ENTRY.pbuffer, EGL_ENTRY.pbuffer, EGL_ENTRY.context);
+            Ok((Swapchain { ctxt, display: surface.display, surface: surface.surface, fbos, extent: config.extent }, images))
+        }
     }
 
     unsafe fn destroy_swapchain(&self, _swapchain: Swapchain) {

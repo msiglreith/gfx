@@ -20,6 +20,8 @@ pub extern crate winit;
 
 #[cfg(feature = "egl")]
 extern crate glutin_egl_sys as egl_sys;
+
+#[cfg(feature = "wgl")]
 extern crate winapi;
 
 
@@ -136,7 +138,7 @@ impl Error {
 /// Internal struct of shared data between the physical and logical device.
 struct Share {
     context: GlContainer,
-    ctxt: HGLRC,
+    ctxt: NativeContext,
     info: Info,
     features: hal::Features,
     legacy_features: info::LegacyFeatures,
@@ -246,8 +248,14 @@ unsafe impl<T: ?Sized> Sync for Wstarc<T> {}
 #[derive(Debug)]
 pub struct PhysicalDevice(Starc<Share>);
 
+#[cfg(feature = "wgl")]
+type NativeContext = HGLRC;
+
+#[cfg(feature = "egl")]
+type NativeContext = ();
+
 impl PhysicalDevice {
-    fn new_adapter<F>(ctxt: HGLRC, fn_proc: F) -> hal::Adapter<Backend>
+    fn new_adapter<F>(ctxt: NativeContext, fn_proc: F) -> hal::Adapter<Backend>
     where
         F: FnMut(&str) -> *const std::os::raw::c_void,
     {

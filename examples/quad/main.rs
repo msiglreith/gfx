@@ -90,8 +90,8 @@ fn main() {
     let window = wb.build(&events_loop).unwrap();
 
     let instance = back::Instance::create("gfx-rs quad", 1);
-    let surface = instance.create_surface(&window);
-    let adapters = instance.enumerate_adapters();
+    let mut surface = instance.create_surface(&window);
+    let mut adapters = instance.enumerate_adapters();
 
     for adapter in &adapters {
         println!("{:?}", adapter.info);
