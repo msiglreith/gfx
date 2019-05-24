@@ -13,8 +13,6 @@ use crate::{command as com, device, native, state, window};
 use crate::{Backend, Share};
 
 #[cfg(feature = "wgl")]
-use winapi::um::wingdi::SwapBuffers;
-#[cfg(feature = "wgl")]
 use winapi::um::wingdi::wglMakeCurrent;
 
 pub type ArrayBuffer = gl::types::GLuint;
@@ -988,45 +986,6 @@ impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
         fence.map(|fence| self.signal_fence(fence));
     }
 
-    #[cfg(feature = "glutin")]
-    unsafe fn present<'a, W, Is, S, Iw>(
-        &mut self,
-        swapchains: Is,
-        _wait_semaphores: Iw,
-    ) -> Result<Option<hal::window::Suboptimal>, hal::window::PresentError>
-    where
-        W: 'a + Borrow<window::glutin::Swapchain>,
-        Is: IntoIterator<Item = (&'a W, hal::SwapImageIndex)>,
-        S: 'a + Borrow<native::Semaphore>,
-        Iw: IntoIterator<Item = &'a S>,
-    {
-        let gl = &self.share.context;
-
-        for swapchain in swapchains {
-            let extent = swapchain.0.borrow().extent;
-
-            gl.BindFramebuffer(gl::READ_FRAMEBUFFER, self.state.fbo);
-            gl.BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
-            gl.BlitFramebuffer(
-
-                0,
-                0,
-                extent.width as _,
-                extent.height as _,
-                0,
-                0,
-                extent.width as _,
-                extent.height as _,
-                gl::COLOR_BUFFER_BIT,
-                gl::LINEAR,
-            );
-
-            swapchain.0.borrow().window.swap_buffers().unwrap();
-        }
-
-        Ok(None)
-    }
-
     #[cfg(feature = "egl")]
     unsafe fn present<'a, W, Is, S, Iw>(&mut self, swapchains: Is, _wait_semaphores: Iw) -> Result<Option<hal::window::Suboptimal>, hal::window::PresentError>
     where
@@ -1081,7 +1040,7 @@ impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
             let swapchain = swapchain.0.borrow();
             let extent = swapchain.extent;
 
-            wglMakeCurrent(swapchain.hdc as *mut _, swapchain.ctxt as *mut _);
+            swapchain.make_current();
 
             gl.BindFramebuffer(gl::READ_FRAMEBUFFER, swapchain.fbos[0]); // TODO
             gl.BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
@@ -1098,7 +1057,7 @@ impl hal::queue::RawCommandQueue<Backend> for CommandQueue {
                 gl::LINEAR,
             );
 
-            SwapBuffers(swapchain.hdc);
+            swapchain.swap_buffers();
         }
 
         wglMakeCurrent(crate::window::wgl::WGL_ENTRY.hdc as *mut _, self.share.ctxt as *mut _);

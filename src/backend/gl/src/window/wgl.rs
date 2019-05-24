@@ -140,15 +140,6 @@ lazy_static! {
 
 unsafe impl Sync for Entry { }
 
-#[derive(Debug)]
-pub struct Surface {
-    pub(crate) hwnd: HWND,
-}
-
-// TODO: high -msiglreith
-unsafe impl Send for Surface { }
-unsafe impl Sync for Surface { }
-
 pub struct Instance {
     pub(crate) ctxt: HGLRC,
 }
@@ -239,34 +230,6 @@ impl Instance {
         }
     }
 
-    #[cfg(all(unix, not(target_os = "android")))]
-    pub fn create_surface_from_xlib(
-        &self
-    ) -> Surface {
-        unimplemented!()
-    }
-
-    #[cfg(all(unix, not(target_os = "android")))]
-    pub fn create_surface_from_xcb(
-        &self
-    ) -> Surface {
-        unimplemented!()
-    }
-
-    #[cfg(all(unix, not(target_os = "android")))]
-    pub fn create_surface_from_wayland(
-        &self, display: *mut c_void, surface: *mut c_void, width: Size, height: Size
-    ) -> Surface {
-        unimplemented!()
-    }
-
-    #[cfg(target_os = "android")]
-    pub fn create_surface_android(
-        &self
-    ) -> Surface {
-        unimplemented!()
-    }
-
     #[cfg(windows)]
     pub fn create_surface_from_hwnd(
         &self, hwnd: *mut c_void
@@ -299,44 +262,10 @@ impl Instance {
 
     #[cfg(feature = "winit")]
     pub fn create_surface(&self, window: &winit::Window) -> Surface {
-    //     #[cfg(all(unix, not(target_os = "android")))]
-    //     {
-    //         use winit::os::unix::WindowExt;
+        use winit::os::windows::WindowExt;
 
-    //         if self.extensions.contains(&vk::VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME) {
-    //             if let Some(display) = window.get_wayland_display() {
-    //                 let display: *mut c_void = display as *mut _;
-    //                 let surface: *mut c_void = window.get_wayland_surface().unwrap() as *mut _;
-    //                 let px = window.get_inner_size().unwrap();
-    //                 return self.create_surface_from_wayland(display, surface, px.width as _, px.height as _);
-    //             }
-    //         }
-    //         if self.extensions.contains(&vk::VK_KHR_XLIB_SURFACE_EXTENSION_NAME) {
-    //             if let Some(display) = window.get_xlib_display() {
-    //                 let window = window.get_xlib_window().unwrap();
-    //                 return self.create_surface_from_xlib(display as _, window);
-    //             }
-    //         }
-    //         panic!("The OpenGL driver does not support surface creation!");
-    //     }
-    //     #[cfg(target_os = "android")]
-    //     {
-    //         use winit::os::android::WindowExt;
-    //         let logical_size = window.get_inner_size().unwrap();
-    //         let width = logical_size.width * window.get_hidpi_factor();
-    //         let height = logical_size.height * window.get_hidpi_factor();
-    //         self.create_surface_android(window.get_native_window(), width as _, height as _)
-    //     }
-    // }
-
-        #[cfg(windows)]
-        {
-            use winapi::um::libloaderapi::GetModuleHandleW;
-            use winit::os::windows::WindowExt;
-
-            let hwnd = window.get_hwnd();
-            self.create_surface_from_hwnd(hwnd as *mut _)
-        }
+        let hwnd = window.get_hwnd();
+        self.create_surface_from_hwnd(hwnd as *mut _)
     }
 }
 
@@ -357,6 +286,27 @@ impl hal::Instance for Instance {
     }
 }
 
+#[derive(Debug)]
+pub struct Surface {
+    pub(crate) hwnd: HWND,
+}
+
+// TODO: high -msiglreith
+unsafe impl Send for Surface { }
+unsafe impl Sync for Surface { }
+
+
+impl Surface {
+    fn get_extent(&self) -> hal::window::Extent2D {
+        let mut rect: RECT = unsafe { mem::uninitialized() };
+        unsafe { GetClientRect(self.hwnd, &mut rect); }
+        hal::window::Extent2D {
+            width: (rect.right - rect.left) as _,
+            height: (rect.bottom - rect.top) as _,
+        }
+    }
+}
+
 impl hal::Surface<Backend> for Surface {
     fn kind(&self) -> hal::image::Kind {
         unimplemented!()
@@ -365,12 +315,7 @@ impl hal::Surface<Backend> for Surface {
     fn compatibility(
         &self, physical_device: &PhysicalDevice
     ) -> (hal::SurfaceCapabilities, Option<Vec<Format>>, Vec<hal::PresentMode>) {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
-        unsafe { GetClientRect(self.hwnd, &mut rect); }
-        let extent = hal::window::Extent2D {
-            width: (rect.right - rect.left) as _,
-            height: (rect.bottom - rect.top) as _,
-        };
+        let extent = self.get_extent();
 
         let caps = hal::SurfaceCapabilities {
             image_count: 2..3,
@@ -406,6 +351,16 @@ pub struct Swapchain {
 // TODO
 unsafe impl Send for Swapchain { }
 unsafe impl Sync for Swapchain { }
+
+impl Swapchain {
+    fn make_current(&self) {
+        wglMakeCurrent(self.hdc as *mut _, self.ctxt as *mut _);
+    }
+
+    fn swap_buffers(&self) {
+        SwapBuffers(self.hdc);
+    }
+}
 
 impl hal::Swapchain<Backend> for Swapchain {
     unsafe fn acquire_image(
