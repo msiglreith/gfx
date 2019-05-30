@@ -1,4 +1,3 @@
-use egl_sys;
 
 use std::ptr;
 use std::sync::Arc;
@@ -14,12 +13,48 @@ use hal::window::Extent2D;
 #[cfg(feature = "winit")]
 use winit;
 
+
+
+pub mod egl_sys {
+    use std::os::raw;
+
+    pub type NativeDisplayType = EGLNativeDisplayType;
+    pub type NativePixmapType = EGLNativePixmapType;
+pub type NativeWindowType = EGLNativeWindowType;
+
+
+    pub type EGLNativeDisplayType = *const raw::c_void;
+    pub type EGLNativePixmapType = *const raw::c_void; // FIXME: egl_native_pixmap_t instead
+
+    #[cfg(target_os = "windows")]
+    pub type EGLNativeWindowType = winapi::shared::windef::HWND;
+    #[cfg(target_os = "linux")]
+    pub type EGLNativeWindowType = *const raw::c_void;
+    #[cfg(target_os = "android")]
+    pub type EGLNativeWindowType = *const raw::c_void;
+    #[cfg(any(
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    pub type EGLNativeWindowType = *const raw::c_void;
+
+
+    pub type khronos_utime_nanoseconds_t = khronos_uint64_t;
+    pub type khronos_uint64_t = u64;
+    pub type khronos_ssize_t = raw::c_long;
+    pub type EGLint = i32;
+
+    include!(concat!(env!("OUT_DIR"), "/egl_bindings.rs"));
+}
+
 pub(crate) struct Entry {
     lib: libloading::Library,
-    pub(crate) egl: egl_sys::egl::Egl,
-    pub(crate) display: egl_sys::egl::types::EGLDisplay,
-    pub(crate) context: egl_sys::egl::types::EGLContext,
-    pub(crate) pbuffer: egl_sys::egl::types::EGLSurface,
+    pub(crate) egl: egl_sys::Egl,
+    pub(crate) display: egl_sys::types::EGLDisplay,
+    pub(crate) context: egl_sys::types::EGLContext,
+    pub(crate) pbuffer: egl_sys::types::EGLSurface,
 }
 
 impl Entry {
@@ -27,15 +62,15 @@ impl Entry {
         #[cfg(windows)]
         let lib = libloading::Library::new("libEGL.dll").unwrap();
         #[cfg(unix)]
-        let lib = libloading::Library::new("libEGL.so").unwrap();
+        let lib = libloading::Library::new("libEGL.so.1").unwrap();
 
-        let egl = egl_sys::egl::Egl::load_with(|sym| unsafe {
+        let egl = egl_sys::Egl::load_with(|sym| unsafe {
             lib.get(CString::new(sym.as_bytes()).unwrap().as_bytes_with_nul())
                 .map(|sym| *sym)
                 .unwrap_or(std::ptr::null_mut())
         });
 
-        let display = egl.GetDisplay(egl_sys::egl::DEFAULT_DISPLAY);
+        let display = dbg!(egl.GetDisplay(egl_sys::DEFAULT_DISPLAY));
 
         let mut major = 0;
         let mut minor = 0;
@@ -43,13 +78,13 @@ impl Entry {
         dbg!(egl.Initialize(display, &mut major, &mut minor));
         dbg!((major, minor));
 
-        dbg!(egl.BindAPI(egl_sys::egl::OPENGL_API));
+        dbg!(egl.BindAPI(egl_sys::OPENGL_API));
 
         let mut config = ptr::null();
         let mut num_configs = 0;
         let attribs = [
-            egl_sys::egl::SURFACE_TYPE, egl_sys::egl::PBUFFER_BIT,
-            egl_sys::egl::NONE
+            egl_sys::SURFACE_TYPE, egl_sys::PBUFFER_BIT,
+            egl_sys::NONE
         ];
         egl.ChooseConfig(
             display,
@@ -60,15 +95,15 @@ impl Entry {
         );
 
         let attribs = [
-            egl_sys::egl::CONTEXT_CLIENT_VERSION, 3,
-            egl_sys::egl::NONE
+            egl_sys::CONTEXT_CLIENT_VERSION, 4,
+            egl_sys::NONE
         ];
-        let context = dbg!(egl.CreateContext(display, config, egl_sys::egl::NO_CONTEXT, attribs.as_ptr() as *const _));
+        let context = dbg!(egl.CreateContext(display, config, egl_sys::NO_CONTEXT, attribs.as_ptr() as *const _));
 
         let attribs = [
-            egl_sys::egl::WIDTH, 1,
-            egl_sys::egl::HEIGHT, 1,
-            egl_sys::egl::NONE
+            egl_sys::WIDTH, 1,
+            egl_sys::HEIGHT, 1,
+            egl_sys::NONE
         ];
         let pbuffer = dbg!(egl.CreatePbufferSurface(display, config, attribs.as_ptr() as *const _));
 
@@ -85,10 +120,13 @@ lazy_static! {
 
 unsafe impl Sync for Entry { }
 
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Surface {
-    pub(crate) display: egl_sys::egl::types::EGLDisplay,
-    pub(crate) surface: egl_sys::egl::types::EGLSurface,
+    pub(crate) display: egl_sys::types::EGLDisplay,
+    pub(crate) surface: egl_sys::types::EGLSurface,
+    #[derivative(Debug="ignore")]
+    window: wayland_client::egl::WlEglSurface,
 }
 
 // TODO: high -msiglreith
@@ -109,34 +147,34 @@ impl Instance {
         }
     }
 
-    #[cfg(all(unix, not(target_os = "android")))]
-    pub fn create_surface_from_xlib(
-        &self,
-        window: *const (),
-    ) -> Surface {
-        let mut config = ptr::null();
-        let mut num_configs = 0;
+    // #[cfg(all(unix, not(target_os = "android")))]
+    // pub fn create_surface_from_xlib(
+    //     &self,
+    //     window: *const (),
+    // ) -> Surface {
+    //     let mut config = ptr::null();
+    //     let mut num_configs = 0;
 
-        let attribs = [
-            egl_sys::egl::SURFACE_TYPE, egl_sys::egl::WINDOW_BIT,
-            egl_sys::egl::NONE
-        ];
-        unsafe {
-            if EGL_ENTRY.egl.ChooseConfig(
-                EGL_ENTRY.display,
-                attribs.as_ptr() as *const _,
-                &mut config as *mut _ as *mut _,
-                1,
-                &mut num_configs,
-            ) != 0
-            {
-                let surface = dbg!(EGL_ENTRY.egl.CreateWindowSurface(EGL_ENTRY.display, config, window as _, ptr::null()));
-                Surface { display: EGL_ENTRY.display, surface }
-            } else {
-                unimplemented!()
-            }
-        }
-    }
+    //     let attribs = [
+    //         egl_sys::SURFACE_TYPE, egl_sys::WINDOW_BIT,
+    //         egl_sys::NONE
+    //     ];
+    //     unsafe {
+    //         if EGL_ENTRY.egl.ChooseConfig(
+    //             EGL_ENTRY.display,
+    //             attribs.as_ptr() as *const _,
+    //             &mut config as *mut _ as *mut _,
+    //             1,
+    //             &mut num_configs,
+    //         ) != 0
+    //         {
+    //             let surface = dbg!(EGL_ENTRY.egl.CreateWindowSurface(EGL_ENTRY.display, config, window as _, ptr::null()));
+    //             Surface { display: EGL_ENTRY.display, surface }
+    //         } else {
+    //             unimplemented!()
+    //         }
+    //     }
+    // }
 
     #[cfg(all(unix, not(target_os = "android")))]
     pub fn create_surface_from_xcb(
@@ -147,9 +185,45 @@ impl Instance {
 
     #[cfg(all(unix, not(target_os = "android")))]
     pub fn create_surface_from_wayland(
-        &self, display: *mut c_void, surface: *mut c_void, width: Size, height: Size
+        &self, display: *mut c_void, surface: *mut c_void
     ) -> Surface {
-        unimplemented!()
+        let mut config = ptr::null();
+        let mut num_configs = 0;
+
+        let egl_display = unsafe { EGL_ENTRY.egl.GetDisplay(display) };
+
+        let mut major = 0;
+        let mut minor = 0;
+
+        unsafe {
+        dbg!(EGL_ENTRY.egl.Initialize(egl_display, &mut major, &mut minor));
+        dbg!((major, minor));
+        }
+
+
+        let window = unsafe { wayland_client::egl::WlEglSurface::new_from_raw(surface as _, 800, 600) };
+
+        let attribs = [
+            egl_sys::SURFACE_TYPE, egl_sys::WINDOW_BIT,
+            egl_sys::NONE
+        ];
+        unsafe {
+            if EGL_ENTRY.egl.ChooseConfig(
+                egl_display,
+                attribs.as_ptr() as *const _,
+                &mut config as *mut _ as *mut _,
+                1,
+                &mut num_configs,
+            ) != 0
+            {
+                
+                let surface = dbg!(EGL_ENTRY.egl.CreateWindowSurface(egl_display, config, dbg!(window.ptr()), ptr::null()));
+                dbg!(EGL_ENTRY.egl.GetError());
+                Surface { display: egl_display, surface, window }
+            } else {
+                unimplemented!()
+            }
+        }
     }
 
     #[cfg(target_os = "android")]
@@ -167,8 +241,8 @@ impl Instance {
         let mut num_configs = 0;
 
         let attribs = [
-            egl_sys::egl::SURFACE_TYPE, egl_sys::egl::WINDOW_BIT,
-            egl_sys::egl::NONE
+            egl_sys::SURFACE_TYPE, egl_sys::WINDOW_BIT,
+            egl_sys::NONE
         ];
         unsafe {
             if EGL_ENTRY.egl.ChooseConfig(
@@ -189,26 +263,6 @@ impl Instance {
 
     #[cfg(feature = "winit")]
     pub fn create_surface(&self, window: &winit::Window) -> Surface {
-    //     #[cfg(all(unix, not(target_os = "android")))]
-    //     {
-    //         use winit::os::unix::WindowExt;
-
-    //         if self.extensions.contains(&vk::VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME) {
-    //             if let Some(display) = window.get_wayland_display() {
-    //                 let display: *mut c_void = display as *mut _;
-    //                 let surface: *mut c_void = window.get_wayland_surface().unwrap() as *mut _;
-    //                 let px = window.get_inner_size().unwrap();
-    //                 return self.create_surface_from_wayland(display, surface, px.width as _, px.height as _);
-    //             }
-    //         }
-    //         if self.extensions.contains(&vk::VK_KHR_XLIB_SURFACE_EXTENSION_NAME) {
-    //             if let Some(display) = window.get_xlib_display() {
-    //                 let window = window.get_xlib_window().unwrap();
-    //                 return self.create_surface_from_xlib(display as _, window);
-    //             }
-    //         }
-    //         panic!("The OpenGL driver does not support surface creation!");
-    //     }
     //     #[cfg(target_os = "android")]
     //     {
     //         use winit::os::android::WindowExt;
@@ -232,10 +286,17 @@ impl Instance {
         {
             use winit::os::unix::WindowExt;
 
-            if let Some(display) = window.get_xlib_display() {
-                let window = window.get_xlib_window().unwrap();
-                return self.create_surface_from_xlib(window as _);
+            // if let Some(display) = window.get_xlib_display() {
+            //     let window = window.get_xlib_window().unwrap();
+            //     return self.create_surface_from_xlib(window as _);
+            // }
+
+            if let Some(display) = window.get_wayland_display() {
+                let display: *mut c_void = display as *mut _;
+                let surface: *mut c_void = window.get_wayland_surface().unwrap() as *mut _;
+                return self.create_surface_from_wayland(display, surface);
             }
+
             panic!("The OpenGL driver does not support surface creation!");
         }
     }
@@ -291,11 +352,11 @@ impl hal::Surface<Backend> for Surface {
 
 #[derive(Debug)]
 pub struct Swapchain {
-    pub(crate) display: egl_sys::egl::types::EGLDisplay,
-    pub(crate) surface: egl_sys::egl::types::EGLSurface,
+    pub(crate) display: egl_sys::types::EGLDisplay,
+    pub(crate) surface: egl_sys::types::EGLSurface,
     pub(crate) fbos: Vec<gl::types::GLuint>,
     pub(crate) extent: Extent2D,
-    pub(crate) ctxt: egl_sys::egl::types::EGLContext,
+    pub(crate) ctxt: egl_sys::types::EGLContext,
 }
 
 // TODO: high -msiglreith

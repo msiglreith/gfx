@@ -260,7 +260,7 @@ impl Info {
             platform_name: platform_name,
             version: version,
             shading_language: shading_language,
-            extensions: extensions,
+            extensions: dbg!(extensions),
         }
     }
 

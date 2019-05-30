@@ -40,7 +40,7 @@ use std::fs;
 use std::io::{Cursor, Read};
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-const DIMS: Extent2D = Extent2D { width: 1024,height: 768 };
+const DIMS: Extent2D = Extent2D { width: 800,height: 600 };
 
 const ENTRY_NAME: &str = "main";
 
@@ -105,6 +105,26 @@ fn main() {
     let (device, mut queue_group) = adapter
         .open_with::<_, hal::Graphics>(1, |family| surface.supports_queue_family(family))
         .unwrap();
+        
+    let (caps, formats, _present_modes) = surface.compatibility(&mut adapter.physical_device);
+    println!("formats: {:?}", formats);
+    let format = formats.map_or(f::Format::Rgba8Srgb, |formats| {
+        formats
+            .iter()
+            .find(|format| format.base_format().1 == ChannelType::Srgb)
+            .map(|format| *format)
+            .unwrap_or(formats[0])
+    });
+
+    let swap_config = SwapchainConfig::from_caps(&caps, format, DIMS);
+    println!("{:?}", swap_config);
+    let extent = swap_config.extent.to_extent();
+
+    let (mut swap_chain, mut backbuffer) =
+        unsafe { device.create_swapchain(&mut surface, swap_config, None) }
+            .expect("Can't create swapchain");
+
+    
 
     let mut command_pool = unsafe {
         device.create_command_pool_typed(&queue_group, pool::CommandPoolCreateFlags::empty())
@@ -355,23 +375,7 @@ fn main() {
         device.destroy_fence(copy_fence);
     }
 
-    let (caps, formats, _present_modes) = surface.compatibility(&mut adapter.physical_device);
-    println!("formats: {:?}", formats);
-    let format = formats.map_or(f::Format::Rgba8Srgb, |formats| {
-        formats
-            .iter()
-            .find(|format| format.base_format().1 == ChannelType::Srgb)
-            .map(|format| *format)
-            .unwrap_or(formats[0])
-    });
-
-    let swap_config = SwapchainConfig::from_caps(&caps, format, DIMS);
-    println!("{:?}", swap_config);
-    let extent = swap_config.extent.to_extent();
-
-    let (mut swap_chain, mut backbuffer) =
-        unsafe { device.create_swapchain(&mut surface, swap_config, None) }
-            .expect("Can't create swapchain");
+    
 
     let render_pass = {
         let attachment = pass::Attachment {
@@ -627,7 +631,7 @@ fn main() {
                     | winit::WindowEvent::CloseRequested => running = false,
                     winit::WindowEvent::Resized(dims) => {
                         println!("resized to {:?}", dims);
-                        recreate_swapchain = true;
+                        recreate_swapchain = false;
                         resize_dims.width = dims.width as u32;
                         resize_dims.height = dims.height as u32;
                     }

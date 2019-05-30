@@ -42,4 +42,34 @@ fn main() {
         .write_bindings(gl_generator::StructGenerator, &mut file)
         .unwrap();
     }
+
+    if target.contains("linux")
+        || target.contains("dragonfly")
+        || target.contains("freebsd")
+        || target.contains("netbsd")
+        || target.contains("openbsd")
+        || target.contains("windows")
+        || target.contains("android")
+        || target.contains("ios")
+    {
+        let mut file = File::create(&dest.join("egl_bindings.rs")).unwrap();
+        let reg = Registry::new(
+            Api::Egl,
+            (1, 5),
+            Profile::Core,
+            Fallbacks::All,
+            [
+                "EGL_KHR_create_context",
+                "EGL_EXT_create_context_robustness",
+                "EGL_KHR_create_context_no_error",
+            ],
+        );
+
+        if target.contains("android") || target.contains("ios") {
+            reg.write_bindings(gl_generator::StaticStructGenerator, &mut file)
+        } else {
+            reg.write_bindings(gl_generator::StructGenerator, &mut file)
+        }
+        .unwrap()
+    }
 }

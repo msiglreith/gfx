@@ -31,6 +31,8 @@ use winapi::um::wingdi::*;
 #[cfg(feature = "wgl")]
 use crate::window::wgl::WGL_ENTRY;
 
+use crate::window::egl::egl_sys;
+
 /// Emit error during shader module creation. Used if we don't expect an error
 /// but might panic due to an exception in SPIRV-Cross.
 fn gen_unexpected_error(err: SpirvErrorCode) -> d::ShaderError {
@@ -200,12 +202,13 @@ impl Device {
     }
 
     fn bind_target(gl: &GlContainer, point: GLenum, attachment: GLenum, view: &n::ImageView) {
+        dbg!(view);
         match *view {
             n::ImageView::Surface(surface) => unsafe {
-                gl.FramebufferRenderbuffer(point, attachment, gl::RENDERBUFFER, surface);
+                dbg!(gl.FramebufferRenderbuffer(point, attachment, gl::RENDERBUFFER, surface));
             },
             n::ImageView::Texture(texture, level) => unsafe {
-                gl.FramebufferTexture(point, attachment, texture, level as _);
+                dbg!(gl.FramebufferTexture(point, attachment, texture, level as _));
             },
             n::ImageView::TextureLayer(texture, level, layer) => unsafe {
                 gl.FramebufferTextureLayer(point, attachment, texture, level as _, layer as _);
@@ -987,19 +990,27 @@ impl d::Device<B> for Device {
             }
         }
 
+        dbg!(gl.GetError());
+
         let mut attachments_len = 0;
         for (&render_attachment, view) in render_attachments.iter().zip(attachments.into_iter()) {
             attachments_len += 1;
             if self.share.private_caps.framebuffer_texture {
+                println!("bind target", );
+                dbg!(gl.GetError());
                 Self::bind_target(gl, target, render_attachment, view.borrow());
             } else {
+                println!("bind target compat");
+                dbg!(gl.GetError());
                 Self::bind_target_compat(gl, target, render_attachment, view.borrow());
             }
         }
 
+        dbg!(gl.GetError());
+
         assert!(pass.attachments.len() <= attachments_len);
 
-        let _status = gl.CheckFramebufferStatus(target); //TODO: check status
+        let _status = dbg!(gl.CheckFramebufferStatus(target)); //TODO: check status
         gl.BindFramebuffer(target, 0);
 
         if let Err(err) = self.share.check() {
@@ -1732,11 +1743,11 @@ impl d::Device<B> for Device {
             let mut config = ptr::null();
             let mut num_configs = 0;
             let attribs = [
-                egl_sys::egl::SURFACE_TYPE, egl_sys::egl::WINDOW_BIT,
-                egl_sys::egl::NONE
+                egl_sys::SURFACE_TYPE, egl_sys::WINDOW_BIT,
+                egl_sys::NONE
             ];
             EGL_ENTRY.egl.ChooseConfig(
-                EGL_ENTRY.display,
+                surface.display,
                 attribs.as_ptr() as *const _,
                 &mut config as *mut _ as *mut _,
                 1,
@@ -1744,111 +1755,259 @@ impl d::Device<B> for Device {
             );
 
             let attribs = [
-                egl_sys::egl::CONTEXT_CLIENT_VERSION, 3,
-                egl_sys::egl::NONE
+                egl_sys::CONTEXT_CLIENT_VERSION, 4,
+                egl_sys::NONE
             ];
-            let ctxt = dbg!(EGL_ENTRY.egl.CreateContext(EGL_ENTRY.display, config, EGL_ENTRY.context, attribs.as_ptr() as *const _));
-            EGL_ENTRY.egl.MakeCurrent(EGL_ENTRY.display, surface.surface, surface.surface, ctxt);
+            dbg!(EGL_ENTRY.egl.GetError());
+            let ctxt = dbg!(EGL_ENTRY.egl.CreateContext(surface.display, config, egl_sys::NO_CONTEXT, attribs.as_ptr() as *const _));
+            dbg!(EGL_ENTRY.egl.GetError());
+            
             ctxt
         };
 
-        let mut fbos = Vec::new();
-        let images = (0..config.image_count)
-            .map(|_| unsafe {
+        
+        let mut gl_images = Vec::new();
+        let mut egl_images = Vec::new();
 
-                let mut fbo = 0;
-                gl.GenFramebuffers(1, &mut fbo);
-                gl.BindFramebuffer(gl::FRAMEBUFFER, fbo);
-                fbos.push(fbo);
+        let Extent2D { width: w, height: h } = config.extent;
 
-                let image = if true
-                {
-                    let mut name = 0;
-                    gl.GenTextures(1, &mut name);
-                    match config.extent {
-                        Extent2D {
-                            width: w,
-                            height: h,
-                        } => {
-                            gl.BindTexture(gl::TEXTURE_2D, name);
-                            if self.share.private_caps.image_storage {
-                                gl.TexStorage2D(
-                                    gl::TEXTURE_2D,
-                                    config.image_layers as _,
-                                    int_format,
-                                    w as _,
-                                    h as _,
-                                );
-                            } else {
-                                gl.TexParameteri(
-                                    gl::TEXTURE_2D,
-                                    gl::TEXTURE_MAX_LEVEL,
-                                    (config.image_layers - 1) as _,
-                                );
-                                let mut w = w;
-                                let mut h = h;
-                                for i in 0..config.image_layers {
-                                    gl.TexImage2D(
-                                        gl::TEXTURE_2D,
-                                        i as _,
-                                        int_format as _,
-                                        w as _,
-                                        h as _,
-                                        0,
-                                        iformat,
-                                        itype,
-                                        std::ptr::null(),
-                                    );
-                                    w = std::cmp::max(w / 2, 1);
-                                    h = std::cmp::max(h / 2, 1);
-                                }
-                            }
+        for i in 0..config.image_count {
+            use crate::window::egl::EGL_ENTRY;
 
-                            gl.FramebufferTexture(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0,name, 0);
+            let mut name = 0;
+            gl.GenTextures(1, &mut name);
 
-                            dbg!(gl.CheckFramebufferStatus(gl::FRAMEBUFFER));
-                            println!("{:?}", self.share.check());
-                        }
-                    };
-                    n::ImageKind::Texture(name)
-                } else {
-                    let mut name = 0;
-                    gl.GenRenderbuffers(1, &mut name);
-                    match config.extent {
-                        Extent2D {
-                            width: w,
-                            height: h,
-                        } => {
-                            gl.BindRenderbuffer(gl::RENDERBUFFER, name);
-                            gl.RenderbufferStorage(gl::RENDERBUFFER, int_format, w as _, h as _);
-                        }
-                    };
-                    n::ImageKind::Surface(name)
-                };
+            
 
-                let surface_desc = config.format.base_format().0.desc();
-                let bytes_per_texel = surface_desc.bits / 8;
-                let ext = config.extent;
-                let size = (ext.width * ext.height) as u64 * bytes_per_texel as u64;
-
-                if let Err(err) = self.share.check() {
-                    panic!(
-                        "Error creating swapchain image: {:?} with {:?} format",
-                        err, config.format
+            dbg!(gl.GetError());
+            gl.BindTexture(gl::TEXTURE_2D, name);
+            if false {
+                gl.TexStorage2D(
+                    gl::TEXTURE_2D,
+                    config.image_layers as _,
+                    int_format,
+                    w as _,
+                    h as _,
+                );
+            } else {
+                gl.TexParameteri(
+                    gl::TEXTURE_2D,
+                    gl::TEXTURE_MAX_LEVEL,
+                    (config.image_layers - 1) as _,
+                );
+                let mut w = w;
+                let mut h = h;
+                for i in 0..config.image_layers {
+                    gl.TexImage2D(
+                        gl::TEXTURE_2D,
+                        i as _,
+                        int_format as _,
+                        w as _,
+                        h as _,
+                        0,
+                        iformat,
+                        itype,
+                        std::ptr::null(),
                     );
+                    w = std::cmp::max(w / 2, 1);
+                    h = std::cmp::max(h / 2, 1);
                 }
+            }
 
-                n::Image {
-                    kind: image,
-                    channel,
-                    requirements: memory::Requirements {
-                        size,
-                        alignment: 1,
-                        type_mask: 0x7,
-                    },
-                }
-            })
-            .collect::<Vec<_>>();
+            dbg!(gl.GetError());
+
+            dbg!(EGL_ENTRY.egl.GetError());
+            let egl_image = dbg!(EGL_ENTRY.egl.CreateImage(EGL_ENTRY.display, EGL_ENTRY.context, egl_sys::GL_TEXTURE_2D, dbg!(name) as _, ptr::null()));
+            dbg!(EGL_ENTRY.egl.GetError());
+
+            egl_images.push(egl_image);
+
+            let image = n::ImageKind::Texture(name);
+
+            let surface_desc = config.format.base_format().0.desc();
+            let bytes_per_texel = surface_desc.bits / 8;
+            let ext = config.extent;
+            let size = (ext.width * ext.height) as u64 * bytes_per_texel as u64;
+
+            if let Err(err) = self.share.check() {
+                panic!(
+                    "Error creating swapchain image: {:?} with {:?} format",
+                    err, config.format
+                );
+            }
+
+            gl_images.push(n::Image {
+                kind: image,
+                channel,
+                requirements: memory::Requirements {
+                    size,
+                    alignment: 1,
+                    type_mask: 0x7,
+                },
+            });
+        }
+
+        {
+            use crate::window::egl::EGL_ENTRY;
+             dbg!(EGL_ENTRY.egl.MakeCurrent(surface.display, surface.surface, surface.surface, ctxt));
+        }
+
+        let mut fbos = Vec::new();
+        for i in 0..config.image_count {
+            let mut fbo = 0;
+            gl.GenFramebuffers(1, &mut fbo);
+            dbg!(gl.GetError());
+            gl.BindFramebuffer(gl::FRAMEBUFFER, fbo);
+            dbg!(gl.GetError());
+            fbos.push(fbo);
+
+            let mut image = 0;
+            gl.GenTextures(1, &mut image);
+            gl.BindTexture(gl::TEXTURE_2D, image);
+            dbg!(gl.GetError());
+            gl.TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MAX_LEVEL,
+                0,
+            );
+            // gl.TexImage2D(
+            //             gl::TEXTURE_2D,
+            //             0,
+            //             int_format as _,
+            //             w as _,
+            //             h as _,
+            //             0,
+            //             iformat,
+            //             itype,
+            //             std::ptr::null(),
+            //         );
+            gl.EGLImageTargetTexture2DOES(gl::TEXTURE_2D, egl_images[i as usize]);
+            dbg!(gl.GetError());
+
+            gl.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, image, 0);
+            dbg!(gl.GetError());
+
+            dbg!(gl.CheckFramebufferStatus(gl::FRAMEBUFFER));
+            println!("pre {:?}", self.share.check());
+
+            gl.ClearColor(0.0,1.0,0.0,0.6);
+            dbg!(gl.GetError());
+            gl.Clear(gl::COLOR_BUFFER_BIT);
+            dbg!(gl.GetError());
+
+            dbg!(gl.CheckFramebufferStatus(gl::FRAMEBUFFER));
+            println!("post {:?}", self.share.check());
+        }
+        
+        // let images = (0..config.image_count)
+        //     .map(|_| unsafe {
+
+        //         let mut fbo = 0;
+        //         gl.GenFramebuffers(1, &mut fbo);
+        //         dbg!(gl.GetError());
+        //         gl.BindFramebuffer(gl::FRAMEBUFFER, fbo);
+        //         dbg!(gl.GetError());
+        //         fbos.push(fbo);
+
+        //         let image = if true
+        //         {
+        //             let mut name = 0;
+        //             gl.GenTextures(1, &mut name);
+        //             match config.extent {
+        //                 Extent2D {
+        //                     width: w,
+        //                     height: h,
+        //                 } => {
+        //                     use crate::window::egl::EGL_ENTRY;
+
+                            
+        //                     dbg!(gl.GetError());
+        //                     gl.BindTexture(gl::TEXTURE_2D, name);
+        //                     if false {
+        //                         gl.TexStorage2D(
+        //                             gl::TEXTURE_2D,
+        //                             config.image_layers as _,
+        //                             int_format,
+        //                             w as _,
+        //                             h as _,
+        //                         );
+        //                     } else {
+        //                         gl.TexParameteri(
+        //                             gl::TEXTURE_2D,
+        //                             gl::TEXTURE_MAX_LEVEL,
+        //                             (config.image_layers - 1) as _,
+        //                         );
+        //                         let mut w = w;
+        //                         let mut h = h;
+        //                         for i in 0..config.image_layers {
+        //                             gl.TexImage2D(
+        //                                 gl::TEXTURE_2D,
+        //                                 i as _,
+        //                                 int_format as _,
+        //                                 w as _,
+        //                                 h as _,
+        //                                 0,
+        //                                 iformat,
+        //                                 itype,
+        //                                 std::ptr::null(),
+        //                             );
+        //                             w = std::cmp::max(w / 2, 1);
+        //                             h = std::cmp::max(h / 2, 1);
+        //                         }
+        //                     }
+                            
+        //                     dbg!(gl.GetError());
+
+        //                     dbg!(EGL_ENTRY.egl.GetError());
+        //                     dbg!(EGL_ENTRY.egl.CreateImage(surface.display, ctxt, egl_sys::GL_TEXTURE_2D, dbg!(name) as _, ptr::null()));
+        //                     dbg!(EGL_ENTRY.egl.GetError());
+
+        //                     // gl.FramebufferTexture(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0,name, 0);
+        //                     // dbg!(gl.GetError());
+
+        //                     // dbg!(gl.CheckFramebufferStatus(gl::FRAMEBUFFER));
+        //                     // println!("{:?}", self.share.check());
+        //                 }
+        //             };
+        //             n::ImageKind::Texture(name)
+        //         } else {
+        //             let mut name = 0;
+        //             gl.GenRenderbuffers(1, &mut name);
+        //             match config.extent {
+        //                 Extent2D {
+        //                     width: w,
+        //                     height: h,
+        //                 } => {
+        //                     gl.BindRenderbuffer(gl::RENDERBUFFER, name);
+        //                     gl.RenderbufferStorage(gl::RENDERBUFFER, int_format, w as _, h as _);
+        //                 }
+        //             };
+        //             n::ImageKind::Surface(name)
+        //         };
+
+        //         let surface_desc = config.format.base_format().0.desc();
+        //         let bytes_per_texel = surface_desc.bits / 8;
+        //         let ext = config.extent;
+        //         let size = (ext.width * ext.height) as u64 * bytes_per_texel as u64;
+
+        //         if let Err(err) = self.share.check() {
+        //             panic!(
+        //                 "Error creating swapchain image: {:?} with {:?} format",
+        //                 err, config.format
+        //             );
+        //         }
+
+        //         n::Image {
+        //             kind: image,
+        //             channel,
+        //             requirements: memory::Requirements {
+        //                 size,
+        //                 alignment: 1,
+        //                 type_mask: 0x7,
+        //             },
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
 
         #[cfg(feature = "wgl")]
         {
@@ -1862,7 +2021,7 @@ impl d::Device<B> for Device {
             use crate::window::egl::EGL_ENTRY;
             
             EGL_ENTRY.egl.MakeCurrent(EGL_ENTRY.display, EGL_ENTRY.pbuffer, EGL_ENTRY.pbuffer, EGL_ENTRY.context);
-            Ok((Swapchain { ctxt, display: surface.display, surface: surface.surface, fbos, extent: config.extent }, images))
+            Ok((Swapchain { ctxt, display: surface.display, surface: surface.surface, fbos, extent: config.extent }, gl_images))
         }
     }
 

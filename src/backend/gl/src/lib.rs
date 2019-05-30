@@ -12,14 +12,13 @@ extern crate gfx_hal as hal;
 extern crate smallvec;
 extern crate spirv_cross;
 
+#[macro_use] extern crate derivative;
+
 #[macro_use]
 extern crate lazy_static;
 
 #[cfg(feature = "winit")]
 pub extern crate winit;
-
-#[cfg(feature = "egl")]
-extern crate glutin_egl_sys as egl_sys;
 
 #[cfg(feature = "wgl")]
 extern crate winapi;
